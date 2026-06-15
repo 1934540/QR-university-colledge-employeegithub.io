@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BolashaqQR - Кабинет владельца</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+  <header class="global-header">
+    <div class="brand">
+      <i data-lucide="qr-code"></i>
+      <span>BolashaqQR</span>
+    </div>
+    <div class="mode-selector">
+      <a class="mode-btn active" id="btn-mode-terminal" href="terminal.html">
+        <i data-lucide="monitor"></i> Терминал входа
+      </a>
+      <a class="mode-btn" id="btn-mode-employee" href="employee.html">
+        <i data-lucide="smartphone"></i> Кабинет сотрудника
+      </a>
+      <a class="mode-btn" id="btn-mode-admin" href="admin.html">
+        <i data-lucide="shield-check"></i> Панель администратора
+      </a>
+      <a class="mode-btn" id="btn-mode-owner" href="owner.html">
+        <i data-lucide="bar-chart-3"></i> Владелец
+      </a>
+    </div>
+  </header>
+
+  <div class="system-clock-bar">
+    <div class="clock-display">
+      <i data-lucide="clock" class="text-indigo"></i>
+      <span>Системное время:</span>
+      <span class="time" id="system-time-display">Понедельник, 08:30:00</span>
+    </div>
+    <div class="clock-controls">
+      <label for="mock-day-select">День недели:</label>
+      <select id="mock-day-select" onchange="updateMockTimeSettings()">
+        <option value="1" selected>Понедельник</option>
+        <option value="2">Вторник</option>
+        <option value="3">Среда</option>
+        <option value="4">Четверг</option>
+        <option value="5">Пятница</option>
+        <option value="6">Суббота</option>
+        <option value="0">Воскресенье</option>
+      </select>
+      <label for="mock-time-input">Время:</label>
+      <input type="time" id="mock-time-input" value="08:30" onchange="updateMockTimeSettings()">
+      <label for="mock-date-input">Дата:</label>
+      <input type="date" id="mock-date-input" value="2026-06-01" onchange="updateMockTimeSettings()">
+      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+        <input type="checkbox" id="mock-tick-checkbox" checked onchange="toggleTimeTicking()">
+        <span>Идет время (1с = 1м)</span>
+      </label>
+    </div>
+  </div>
+
+  <main class="view-container active" id="terminal-view">
+    <div class="terminal-card">
+      <h1 class="terminal-title">ВХОДНОЙ ТЕРМИНАЛ</h1>
+      <p class="terminal-subtitle">Сканируйте QR-код сотрудника с телефона или используйте общий QR входа.</p>
+      <div class="qr-display-wrapper">
+        <div class="qr-scan-laser"></div>
+        <div id="entrance-static-qr"></div>
+      </div>
+      <div style="font-size: 0.9rem; color: var(--text-secondary); text-align: center;">
+        <p><strong>QR-код входа:</strong> общий код терминала.</p>
+        <p style="margin-top: 4px; font-size: 0.8rem; color: var(--text-muted);">ID терминала: BOLASHAQ-MAIN-GATE-01</p>
+      </div>
+      <button class="terminal-scan-btn" onclick="openTerminalScanner()">
+        <i data-lucide="scan-line"></i> Сканировать QR сотрудника
+      </button>
+      <div class="terminal-camera-panel" id="terminal-camera-panel">
+        <div class="terminal-camera-header">
+          <span><i data-lucide="camera"></i> Камера терминала</span>
+          <button onclick="closeTerminalScanner()" title="Закрыть сканер"><i data-lucide="x"></i></button>
+        </div>
+        <div class="terminal-webcam-box">
+          <div class="webcam-overlay-laser"></div>
+          <div id="terminal-webcam-reader"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="terminal-feed-card">
+      <div class="feed-header">
+        <span><i data-lucide="activity" style="color: var(--status-ok);"></i> Живая лента проходов</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);" id="feed-date">01.06.2026</span>
+      </div>
+      <div class="feed-logs" id="terminal-live-feed"></div>
+    </div>
+  </main>
+
+  <main class="view-container" id="employee-view">
+    <div class="phone-mockup">
+      <div class="phone-status-bar">
+        <span id="mobile-bar-time">08:30</span>
+        <div class="phone-status-icons">
+          <i data-lucide="wifi" style="width: 12px; height: 12px;"></i>
+          <i data-lucide="battery" style="width: 14px; height: 14px;"></i>
+        </div>
+      </div>
+      <div class="phone-content">
+        <div class="employee-login-card" id="employee-login-card">
+          <div class="employee-login-icon"><i data-lucide="user-lock"></i></div>
+          <div>
+            <h2>Вход сотрудника</h2>
+            <p>Введите логин и пароль, выданные администратором.</p>
+          </div>
+          <div class="employee-login-form">
+            <input type="text" id="employee-login-username" placeholder="Логин" autocomplete="username">
+            <input type="password" id="employee-login-password" placeholder="Пароль" autocomplete="current-password" onkeydown="if(event.key==='Enter') loginEmployeeAccount()">
+            <button class="employee-login-btn" onclick="loginEmployeeAccount()">
+              <i data-lucide="log-in"></i> Войти
+            </button>
+          </div>
+        </div>
+
+        <div class="employee-app-content" id="employee-app-content" style="display:none;">
+          <div class="employee-session-bar">
+            <span><i data-lucide="shield-check"></i> Аккаунт сотрудника</span>
+            <button onclick="logoutEmployeeAccount()" title="Выйти из аккаунта"><i data-lucide="log-out"></i></button>
+          </div>
+
+          <div class="employee-profile-card">
+            <div class="employee-avatar-wrapper">
+              <img src="" id="emp-mobile-avatar" class="employee-avatar" alt="Avatar">
+              <span id="emp-mobile-vip-badge" class="vip-badge-star" style="display:none;"><i data-lucide="star" style="width: 8px; height: 8px; fill: black;"></i></span>
+            </div>
+            <div class="employee-profile-info">
+              <div class="employee-profile-name" id="emp-mobile-name">Загрузка...</div>
+              <div class="employee-profile-role" id="emp-mobile-role">Должность</div>
+              <div class="employee-profile-org" id="emp-mobile-org">Организация</div>
+              <div class="employee-profile-dept" id="emp-mobile-dept">Департамент</div>
+            </div>
+          </div>
+
+          <div class="employee-tabs">
+            <button class="employee-tab-btn active" id="employee-tab-btn-scan" onclick="switchEmployeeTab('scan')">
+              <i data-lucide="scan-line"></i>
+              <span>Скан</span>
+            </button>
+            <button class="employee-tab-btn" id="employee-tab-btn-schedule" onclick="switchEmployeeTab('schedule')">
+              <i data-lucide="calendar-days"></i>
+              <span>Расписание</span>
+            </button>
+            <button class="employee-tab-btn" id="employee-tab-btn-duty" onclick="switchEmployeeTab('duty')">
+              <i data-lucide="clipboard-check"></i>
+              <span>Дежурство</span>
+            </button>
+            <button class="employee-tab-btn" id="employee-tab-btn-attendance" onclick="switchEmployeeTab('attendance')">
+              <i data-lucide="list-checks"></i>
+              <span>Журнал</span>
+            </button>
+          </div>
+
+          <div class="employee-tab-panel active" id="employee-tab-scan">
+            <div class="employee-qr-card">
+              <div class="employee-qr-header">
+                <span><i data-lucide="qr-code"></i> Мой QR для прохода</span>
+              </div>
+              <div class="employee-qr-box" id="employee-mobile-qr"></div>
+            </div>
+
+            <div class="mobile-scan-section">
+              <button class="scan-camera-btn" onclick="openMobileScanner()">
+                <i data-lucide="scan-line"></i> Сканировать QR входа
+              </button>
+              <button class="scan-sim-btn" onclick="simulateCheckIn()">
+                <i data-lucide="play"></i> Симулировать сканирование
+              </button>
+            </div>
+          </div>
+
+          <div class="employee-tab-panel" id="employee-tab-schedule">
+            <div class="mobile-schedule-box">
+              <h3 class="section-title"><i data-lucide="calendar"></i> Мое расписание</h3>
+              <div class="mobile-schedule-list" id="emp-mobile-schedule-list"></div>
+              <div class="employee-schedule-editor" id="employee-schedule-editor">
+                <div class="employee-schedule-editor-title"><i data-lucide="calendar-plus"></i> Добавить пару</div>
+                <input type="text" id="employee-sched-subject" placeholder="Название предмета">
+                <input type="text" id="employee-sched-group" placeholder="Группа, например IT-21">
+                <div class="employee-schedule-row">
+                  <select id="employee-sched-day">
+                    <option value="1">Понедельник</option>
+                    <option value="2">Вторник</option>
+                    <option value="3">Среда</option>
+                    <option value="4">Четверг</option>
+                    <option value="5">Пятница</option>
+                    <option value="6">Суббота</option>
+                    <option value="0">Воскресенье</option>
+                  </select>
+                  <input type="time" id="employee-sched-start" value="09:00">
+                  <input type="time" id="employee-sched-end" value="10:30">
+                </div>
+                <button class="employee-schedule-add-btn" onclick="addOwnScheduleItem()">
+                  <i data-lucide="plus"></i> Добавить в расписание
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="employee-tab-panel" id="employee-tab-duty">
+            <div class="mobile-duty-box">
+              <h3 class="section-title"><i data-lucide="clipboard-check"></i> Дежурство</h3>
+              <div class="mobile-duty-card">
+                <div class="mobile-duty-icon"><i data-lucide="building-2"></i></div>
+                <div>
+                  <strong id="emp-duty-title">Дежурство на сегодня</strong>
+                  <span id="emp-duty-text">Назначений нет</span>
+                </div>
+              </div>
+              <div class="mobile-duty-note" id="emp-duty-note">Если сотрудник назначен дежурным, админ может указать это в примечании или расписании.</div>
+            </div>
+          </div>
+
+          <div class="employee-tab-panel" id="employee-tab-attendance">
+            <div class="mobile-stats-grid">
+              <div class="mobile-stat-card ontime">
+                <span class="label">Вовремя</span>
+                <span class="val" id="emp-mobile-ontime-count">0</span>
+              </div>
+              <div class="mobile-stat-card">
+                <span class="label">Обычные опоздания</span>
+                <span class="val" id="emp-mobile-late-count">0</span>
+              </div>
+              <div class="mobile-stat-card critical">
+                <span class="label">Критические</span>
+                <span class="val" id="emp-mobile-crit-count">0</span>
+              </div>
+              <div class="mobile-stat-card warning-box" id="emp-mobile-warning-card" style="display:none;">
+                <div class="text">
+                  <i data-lucide="alert-triangle" style="color: var(--status-critical); width: 14px; height: 14px; display: inline; vertical-align: text-bottom; margin-right: 2px;"></i>
+                  <span id="emp-mobile-warning-text">Внимание.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mobile-history-box">
+              <h3 class="section-title"><i data-lucide="history"></i> Журнал посещений</h3>
+              <div class="mobile-history-list" id="emp-mobile-history-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mobile-camera-modal" id="mobile-camera-overlay">
+        <div class="mobile-camera-header">
+          <span class="mobile-camera-title">Сканирование QR-кода входа</span>
+          <button class="close-camera-btn" onclick="closeMobileScanner()"><i data-lucide="x"></i></button>
+        </div>
+        <div class="webcam-scanner-box">
+          <div class="webcam-overlay-laser"></div>
+          <div id="webcam-reader" style="width: 100%; height: 100%;"></div>
+        </div>
+      </div>
+
+      <div class="feedback-overlay" id="mobile-feedback-overlay">
+        <div class="feedback-card" id="feedback-card-status">
+          <div class="feedback-icon" id="feedback-icon-box">
+            <i data-lucide="check" id="feedback-icon-graphic"></i>
+          </div>
+          <h2 class="feedback-title" id="feedback-title">Успешный вход</h2>
+          <p class="feedback-msg" id="feedback-msg">Сотрудник</p>
+          <div class="feedback-work-dur" id="feedback-work-duration" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <main class="view-container" id="admin-view-parent">
+    <div class="admin-auth-overlay" id="admin-auth-screen">
+      <div class="admin-auth-card">
+        <i data-lucide="lock" style="width: 48px; height: 48px; margin: 0 auto; color: var(--accent-indigo);"></i>
+        <h2 id="admin-auth-title">Вход для администратора</h2>
+        <p id="admin-auth-note">Введите логин и пароль администратора организации.</p>
+        <div class="admin-login-block" id="admin-login-block">
+          <input class="admin-login-input" type="text" id="admin-login-input" placeholder="Логин администратора" autocomplete="username">
+          <input class="admin-login-input" type="password" id="admin-password-input" placeholder="Пароль администратора" autocomplete="current-password" onkeydown="if(event.key==='Enter') loginAdmin()">
+          <button onclick="loginAdmin()">Войти в систему</button>
+        </div>
+        <div class="owner-login-block" id="owner-login-block">
+          <input class="owner-login-input" type="text" id="owner-login-input" placeholder="Логин владельца" autocomplete="username">
+          <input class="owner-login-input" type="password" id="owner-password-input" placeholder="Пароль владельца" autocomplete="current-password" onkeydown="if(event.key==='Enter') loginOwner()">
+          <button class="owner-login-btn" onclick="loginOwner()">Войти как владелец</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-layout" id="admin-main-panel" style="display: none;">
+      <aside class="admin-sidebar">
+        <div class="admin-menu">
+          <button class="admin-menu-btn active" id="admin-btn-dashboard" onclick="switchAdminTab('dashboard')">
+            <i data-lucide="pie-chart"></i> Панель управления
+          </button>
+          <button class="admin-menu-btn" id="admin-btn-employees" onclick="switchAdminTab('employees')">
+            <i data-lucide="users"></i> База сотрудников
+          </button>
+          <button class="admin-menu-btn" id="admin-btn-logs" onclick="switchAdminTab('logs')">
+            <i data-lucide="list-todo"></i> Журнал проходов
+          </button>
+          <button class="admin-menu-btn" id="admin-btn-settings" onclick="switchAdminTab('settings')">
+            <i data-lucide="settings"></i> Настройки системы
+          </button>
+        </div>
+        <div class="admin-sidebar-footer">
+          <div id="admin-access-label" style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-bottom: 8px;">Уровень доступа: Супер-Админ</div>
+          <button class="logout-admin-btn" onclick="logoutAdmin()">
+            <i data-lucide="log-out"></i> Выйти из панели
+          </button>
+        </div>
+      </aside>
+
+      <section class="admin-content">
+        <div class="admin-tab-content active" id="admin-tab-dashboard">
+          <div class="admin-tab-header">
+            <h2 class="admin-tab-title">Сводка посещаемости</h2>
+          </div>
+          <div class="admin-stats-row">
+            <div class="stat-card">
+              <div class="stat-card-info">
+                <span class="stat-card-label">Всего отметок</span>
+                <span class="stat-card-val" id="stat-total">0</span>
+              </div>
+              <div class="stat-card-icon total"><i data-lucide="user-check"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-info">
+                <span class="stat-card-label">Вовремя</span>
+                <span class="stat-card-val" id="stat-ontime">0</span>
+              </div>
+              <div class="stat-card-icon ontime"><i data-lucide="check-circle"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-info">
+                <span class="stat-card-label">Обычные опоздания</span>
+                <span class="stat-card-val" id="stat-late">0</span>
+              </div>
+              <div class="stat-card-icon late"><i data-lucide="alert-circle"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-info">
+                <span class="stat-card-label">Критические</span>
+                <span class="stat-card-val" id="stat-critical">0</span>
+              </div>
+              <div class="stat-card-icon critical"><i data-lucide="x-circle"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-info">
+                <span class="stat-card-label">Оправдано</span>
+                <span class="stat-card-val" id="stat-excused">0</span>
+              </div>
+              <div class="stat-card-icon excused"><i data-lucide="heart-handshake"></i></div>
+            </div>
+          </div>
+
+          <div class="organization-summary-grid" id="organization-summary-grid"></div>
+          <div class="owner-report-grid">
+            <div class="owner-report-card">
+              <div class="owner-report-header"><span><i data-lucide="alert-circle"></i> Отчет по опозданиям</span></div>
+              <div class="owner-lateness-grid" id="owner-lateness-report"></div>
+            </div>
+            <div class="owner-report-card">
+              <div class="owner-report-header critical"><span><i data-lucide="folder-warning"></i> Папка критических опозданий</span></div>
+              <div class="owner-critical-folder" id="owner-critical-folder"></div>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="chart-section">
+              <h3 class="section-title"><i data-lucide="bar-chart-3"></i> Статистика за сегодня</h3>
+              <div style="width: 100%; height: 280px; position: relative;">
+                <canvas id="attendance-pie-chart"></canvas>
+              </div>
+            </div>
+            <div class="violators-section">
+              <div class="violators-header">
+                <i data-lucide="folder-warning" style="animation: pulse 2s infinite;"></i>
+                <span>Критические нарушители</span>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary);">Сотрудники выше порога критических нарушений.</p>
+              <div class="violators-list" id="violators-list-box"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-tab-content" id="admin-tab-employees">
+          <div class="admin-tab-header">
+            <h2 class="admin-tab-title">База сотрудников</h2>
+            <button class="action-btn" onclick="openAddEmployeeModal()">
+              <i data-lucide="user-plus"></i> Добавить сотрудника
+            </button>
+          </div>
+          <div class="employees-grid" id="admin-employees-grid"></div>
+        </div>
+
+        <div class="admin-tab-content" id="admin-tab-logs">
+          <div class="admin-tab-header">
+            <h2 class="admin-tab-title">Журнал посещаемости</h2>
+            <button class="action-btn" onclick="exportLogsToCSV()" style="background: var(--bg-tertiary); border: 1px solid var(--border-glass);">
+              <i data-lucide="download"></i> Экспорт CSV
+            </button>
+          </div>
+          <div class="logs-table-wrapper">
+            <div class="logs-filters">
+              <input type="text" id="filter-search-name" placeholder="Поиск по ФИО..." oninput="applyLogsFilters()">
+              <select id="filter-role" onchange="applyLogsFilters()">
+                <option value="all">Все роли</option>
+                <option value="teacher">Преподаватель</option>
+                <option value="staff">Администрация</option>
+              </select>
+              <select id="filter-organization" onchange="applyLogsFilters()">
+                <option value="all">Все организации</option>
+                <option value="university">Университет</option>
+                <option value="pedcollege">Педколледж</option>
+                <option value="medcollege">Медколледж</option>
+              </select>
+              <select id="filter-status" onchange="applyLogsFilters()">
+                <option value="all">Все статусы</option>
+                <option value="normal">Вовремя</option>
+                <option value="late">Опоздание</option>
+                <option value="critical">Критическое опоздание</option>
+                <option value="excused">Оправдано</option>
+                <option value="vip">VIP</option>
+              </select>
+              <input type="date" id="filter-date" onchange="applyLogsFilters()">
+              <button onclick="resetLogsFilters()" class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">Сбросить фильтры</button>
+            </div>
+            <table class="logs-table">
+              <thead>
+                <tr>
+                  <th>Сотрудник</th>
+                  <th>Организация</th>
+                  <th>Роль</th>
+                  <th>Дата</th>
+                  <th>Приход</th>
+                  <th>Уход</th>
+                  <th>Отработано</th>
+                  <th>Статус</th>
+                  <th>Детали / Комментарий</th>
+                  <th>Действия</th>
+                </tr>
+              </thead>
+              <tbody id="admin-logs-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="admin-tab-content" id="admin-tab-settings">
+          <div class="admin-tab-header">
+            <h2 class="admin-tab-title">Настройки системы посещаемости</h2>
+          </div>
+          <div class="settings-box">
+            <div class="form-group">
+              <label for="settings-workday-start">Стандартное начало рабочего дня:</label>
+              <input type="time" id="settings-workday-start" value="09:00">
+            </div>
+            <div class="form-group">
+              <label for="settings-accumulate-threshold">Обычных опозданий в одно критическое:</label>
+              <input type="number" id="settings-accumulate-threshold" value="5" min="1" max="20">
+            </div>
+            <div class="form-group">
+              <label for="settings-violator-threshold">Порог критического нарушителя:</label>
+              <input type="number" id="settings-violator-threshold" value="3" min="1" max="10">
+            </div>
+            <div class="admin-org-accounts-box">
+              <div class="settings-subtitle">Аккаунты администраторов организаций</div>
+              <div class="employee-account-grid">
+                <div class="form-group">
+                  <label for="settings-admin-university-login">Логин админа университета:</label>
+                  <input type="text" id="settings-admin-university-login" value="univer">
+                </div>
+                <div class="form-group">
+                  <label for="settings-admin-university-password">Пароль админа университета:</label>
+                  <input type="text" id="settings-admin-university-password" value="univer1">
+                </div>
+              </div>
+              <div class="employee-account-grid">
+                <div class="form-group">
+                  <label for="settings-admin-pedcollege-login">Логин админа педколледжа:</label>
+                  <input type="text" id="settings-admin-pedcollege-login" value="ped">
+                </div>
+                <div class="form-group">
+                  <label for="settings-admin-pedcollege-password">Пароль админа педколледжа:</label>
+                  <input type="text" id="settings-admin-pedcollege-password" value="ped1">
+                </div>
+              </div>
+              <div class="employee-account-grid">
+                <div class="form-group">
+                  <label for="settings-admin-medcollege-login">Логин админа медколледжа:</label>
+                  <input type="text" id="settings-admin-medcollege-login" value="med">
+                </div>
+                <div class="form-group">
+                  <label for="settings-admin-medcollege-password">Пароль админа медколледжа:</label>
+                  <input type="text" id="settings-admin-medcollege-password" value="med1">
+                </div>
+              </div>
+            </div>
+            <div class="employee-account-grid">
+              <div class="form-group">
+                <label for="settings-owner-login">Логин владельца:</label>
+                <input type="text" id="settings-owner-login" value="owner">
+              </div>
+              <div class="form-group">
+                <label for="settings-owner-password">Пароль владельца:</label>
+                <input type="text" id="settings-owner-password" value="owner123">
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="settings-geofence-enabled" style="width: 16px; height: 16px; cursor: pointer;" checked>
+                <span>Разрешать сканирование только рядом с точкой входа</span>
+              </label>
+            </div>
+            <div class="settings-geo-grid">
+              <div class="form-group">
+                <label for="settings-geofence-lat">Широта точки входа:</label>
+                <input type="number" id="settings-geofence-lat" value="44.8488" step="0.000001" min="-90" max="90">
+              </div>
+              <div class="form-group">
+                <label for="settings-geofence-lng">Долгота точки входа:</label>
+                <input type="number" id="settings-geofence-lng" value="65.4823" step="0.000001" min="-180" max="180">
+              </div>
+              <div class="form-group">
+                <label for="settings-geofence-radius">Допустимый радиус, метров:</label>
+                <input type="number" id="settings-geofence-radius" value="150" min="10" max="5000">
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 10px;">
+              <button class="action-btn" onclick="saveSystemSettings()">Сохранить настройки</button>
+              <button class="btn-secondary" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="factoryResetData()">Сбросить базу</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="employee-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="employee-modal-title">Добавить нового сотрудника</h3>
+        <button class="modal-close" onclick="closeEmployeeModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-employee-id">
+        <div class="form-group">
+          <label for="employee-name-input">ФИО сотрудника:</label>
+          <input type="text" id="employee-name-input" placeholder="Иванов Иван Иванович" required>
+        </div>
+        <div class="form-group">
+          <label for="employee-role-input">Роль / тип сотрудника:</label>
+          <select id="employee-role-input" onchange="onModalRoleChange()">
+            <option value="teacher">Преподаватель</option>
+            <option value="staff">Административный персонал</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="employee-org-input">Организация:</label>
+          <select id="employee-org-input">
+            <option value="university">Университет</option>
+            <option value="pedcollege">Педколледж</option>
+            <option value="medcollege">Медколледж</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="employee-dept-input">Департамент / кафедра:</label>
+          <input type="text" id="employee-dept-input" placeholder="Кафедра / отдел">
+        </div>
+        <div class="employee-account-grid">
+          <div class="form-group">
+            <label for="employee-username-input">Логин для входа:</label>
+            <input type="text" id="employee-username-input" placeholder="emp001" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="employee-password-input">Пароль:</label>
+            <input type="text" id="employee-password-input" placeholder="Временный пароль" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="employee-avatar-input">Ссылка на фото сотрудника (URL):</label>
+          <input type="text" id="employee-avatar-input" placeholder="https://example.com/avatar.jpg">
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+          <input type="checkbox" id="employee-vip-input" style="width: 16px; height: 16px; cursor: pointer;">
+          <label for="employee-vip-input" style="font-size: 0.85rem; font-weight: 500; cursor: pointer;">
+            <strong>VIP-статус</strong>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeEmployeeModal()">Отмена</button>
+        <button class="action-btn" onclick="saveEmployeeData()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="schedule-modal">
+    <div class="modal-content" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Управление расписанием пар</h3>
+        <button class="modal-close" onclick="closeScheduleModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">Сотрудник: <strong id="sched-employee-name" style="color: white;">Преподаватель</strong></p>
+        <h4 style="font-size: 0.9rem; font-weight: 600; margin-top: 10px;">Текущее расписание:</h4>
+        <div class="modal-sched-list" id="sched-list-box"></div>
+        <h4 style="font-size: 0.9rem; font-weight: 600; margin-top: 16px; border-top: 1px solid var(--border-glass); padding-top: 16px;">Добавить новую пару:</h4>
+        <div class="add-sched-box">
+          <div class="form-group">
+            <label for="new-sched-subject">Название предмета:</label>
+            <input type="text" id="new-sched-subject" placeholder="Физика / математика">
+          </div>
+          <div class="form-group">
+            <label for="new-sched-group">Группа:</label>
+            <input type="text" id="new-sched-group" placeholder="IT-21 / ПМ-22">
+          </div>
+          <div class="add-sched-row">
+            <div class="form-group">
+              <label for="new-sched-day">День недели:</label>
+              <select id="new-sched-day">
+                <option value="1">Понедельник</option>
+                <option value="2">Вторник</option>
+                <option value="3">Среда</option>
+                <option value="4">Четверг</option>
+                <option value="5">Пятница</option>
+                <option value="6">Суббота</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Интервал проведения:</label>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <input type="time" id="new-sched-start" value="09:00" style="padding: 6px;">
+                <span>-</span>
+                <input type="time" id="new-sched-end" value="10:30" style="padding: 6px;">
+              </div>
+            </div>
+          </div>
+          <button class="action-btn" onclick="addScheduleItem()" style="padding: 8px; justify-content: center; font-size: 0.85rem; margin-top: 6px;">
+            <i data-lucide="plus"></i> Добавить пару
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="action-btn" onclick="closeScheduleModal()">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="excuse-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Оправдание опоздания</h3>
+        <button class="modal-close" onclick="closeExcuseModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="excuse-log-id">
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">Сотрудник: <strong id="excuse-emp-name" style="color: white;">-</strong><br>Время отметки: <span id="excuse-log-time" style="color: white;">-</span></p>
+        <div class="form-group">
+          <label for="excuse-reason-select">Причина:</label>
+          <select id="excuse-reason-select">
+            <option value="По состоянию здоровья">По состоянию здоровья</option>
+            <option value="Служебная причина">Служебная причина</option>
+            <option value="Транспортная причина">Транспортная причина</option>
+            <option value="Другая уважительная причина">Другая уважительная причина</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="excuse-comment-input">Комментарий:</label>
+          <input type="text" id="excuse-comment-input" placeholder="Комментарий">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeExcuseModal()">Отмена</button>
+        <button class="action-btn" onclick="submitLatenessExcuse()">Оправдать</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="edit-log-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Редактирование времени прохода</h3>
+        <button class="modal-close" onclick="closeEditLogModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-log-id-input">
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">Сотрудник: <strong id="edit-log-emp-name" style="color: white;">-</strong><br>Дата: <span id="edit-log-date-label" style="color: white;">-</span></p>
+        <div class="form-group">
+          <label for="edit-log-checkin">Время прихода:</label>
+          <input type="time" id="edit-log-checkin" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-log-checkout">Время ухода:</label>
+          <input type="time" id="edit-log-checkout">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeEditLogModal()">Отмена</button>
+        <button class="action-btn" onclick="saveEditedLogTime()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="qr-modal">
+    <div class="modal-content" style="max-width: 380px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Пропуск сотрудника</h3>
+        <button class="modal-close" onclick="closeQrModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body qr-modal-body">
+        <div id="employee-qr-canvas" class="qr-code-canvas"></div>
+        <div class="qr-employee-name" id="qr-employee-name-label">Имя сотрудника</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); text-align: center;" id="qr-employee-id-label">ID: EMP000</p>
+      </div>
+      <div class="modal-footer" style="justify-content: center;">
+        <button class="action-btn" onclick="window.print()" style="width: 100%;"><i data-lucide="printer"></i> Распечатать</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-box"></div>
+
+  <script src="mockData.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

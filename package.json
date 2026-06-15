@@ -1,0 +1,16 @@
+{
+  "name": "bolashaq-qr",
+  "version": "1.0.0",
+  "description": "University Employee QR Check-in System",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx http-server -p 5173"
+  },
+  "keywords": [
+    "attendance",
+    "qr-code",
+    "education"
+  ],
+  "author": "Antigravity",
+  "license": "ISC"
+}
