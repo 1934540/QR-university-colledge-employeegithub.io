@@ -26,9 +26,13 @@ let html5QrcodeScanner = null;
 let scannerProcessing = false;
 let terminalQrcodeScanner = null;
 let terminalScannerProcessing = false;
+let qrRefreshTimer = null;
+let activeQrModalEmployeeId = null;
 
 // Chart.js instance
 let attendanceChart = null;
+
+const QR_REFRESH_MS = 30000;
 
 const ORGANIZATIONS = {
   university: "Университет",
@@ -80,6 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const initialView = ["terminal", "employee", "admin", "owner"].includes(requestedView) ? requestedView : "terminal";
   switchViewMode(initialView);
   renderEmployeeAuthState();
+  startRealtimeQrRefresh();
   lucide.createIcons();
 });
 
@@ -178,19 +183,64 @@ function getOrganizationName(org) {
   return ORGANIZATIONS[org] || ORGANIZATIONS.university;
 }
 
-// Generate static entrance QR on the terminal screen
+function getQrTimeSlot() {
+  return Math.floor(Date.now() / QR_REFRESH_MS);
+}
+
+function buildGateQrPayload() {
+  return `BOLASHAQ-MAIN-GATE:${getQrTimeSlot()}`;
+}
+
+function buildEmployeeQrPayload(emp) {
+  return `BOLASHAQ-EMPLOYEE:${emp.id}:${getQrTimeSlot()}`;
+}
+
+function renderQrCode(container, text, size) {
+  if (!container || typeof QRCode === "undefined") return;
+  container.innerHTML = "";
+  new QRCode(container, {
+    text,
+    width: size,
+    height: size,
+    colorDark : "#0f172a",
+    colorLight : "#ffffff",
+    correctLevel : QRCode.CorrectLevel.H
+  });
+}
+
+function isFreshQrSlot(slotText) {
+  const slot = Number(slotText);
+  if (!Number.isFinite(slot)) return true;
+  return Math.abs(getQrTimeSlot() - slot) <= 1;
+}
+
+function isGateQrPayload(decodedText) {
+  const text = String(decodedText || "").trim();
+  if (text === "BOLASHAQ-MAIN-GATE") return true;
+  const parts = text.split(":");
+  return parts[0] === "BOLASHAQ-MAIN-GATE" && isFreshQrSlot(parts[1]);
+}
+
+function refreshRealtimeQRCodes() {
+  generateEntranceQR();
+  const emp = employees.find(e => e.id === currentEmployeeId);
+  if (emp) generateEmployeeMobileQR(emp);
+  const modalEmp = employees.find(e => e.id === activeQrModalEmployeeId);
+  if (modalEmp && document.getElementById("qr-modal")?.classList.contains("active")) {
+    generateAdminQrModalCode(modalEmp);
+  }
+}
+
+function startRealtimeQrRefresh() {
+  if (qrRefreshTimer) clearInterval(qrRefreshTimer);
+  qrRefreshTimer = setInterval(refreshRealtimeQRCodes, QR_REFRESH_MS);
+}
+
+// Generate real-time entrance QR on the terminal screen
 function generateEntranceQR() {
   const qrContainer = document.getElementById("entrance-static-qr");
   if (qrContainer) {
-    qrContainer.innerHTML = "";
-    new QRCode(qrContainer, {
-      text: "BOLASHAQ-MAIN-GATE",
-      width: 220,
-      height: 220,
-      colorDark : "#0f172a",
-      colorLight : "#ffffff",
-      correctLevel : QRCode.CorrectLevel.H
-    });
+    renderQrCode(qrContainer, buildGateQrPayload(), 220);
   }
 }
 
@@ -514,15 +564,7 @@ function generateEmployeeMobileQR(emp) {
   const qrContainer = document.getElementById("employee-mobile-qr");
   if (!qrContainer || !emp) return;
 
-  qrContainer.innerHTML = "";
-  new QRCode(qrContainer, {
-    text: `BOLASHAQ-EMPLOYEE:${emp.id}`,
-    width: 168,
-    height: 168,
-    colorDark : "#0f172a",
-    colorLight : "#ffffff",
-    correctLevel : QRCode.CorrectLevel.H
-  });
+  renderQrCode(qrContainer, buildEmployeeQrPayload(emp), 168);
 }
 
 function addOwnScheduleItem() {
@@ -1109,7 +1151,9 @@ function renderTerminalFeed() {
 function getEmployeeIdFromQrPayload(decodedText) {
   const text = String(decodedText || "").trim();
   if (text.startsWith("BOLASHAQ-EMPLOYEE:")) {
-    return text.replace("BOLASHAQ-EMPLOYEE:", "").trim();
+    const parts = text.split(":");
+    if (parts.length >= 3 && !isFreshQrSlot(parts[2])) return null;
+    return parts[1] || null;
   }
   if (employees.some(emp => emp.id === text)) {
     return text;
@@ -1211,7 +1255,7 @@ async function openMobileScanner() {
       // On QR code scanned successfully
       console.log("Scanned QR Text:", decodedText);
       
-      if (decodedText === "BOLASHAQ-MAIN-GATE") {
+      if (isGateQrPayload(decodedText)) {
         // Successfully scanned the gate! Execute check in/out for current user
         const isAllowedNow = await ensureInsideGeoFence();
         if (isAllowedNow) {
@@ -2334,25 +2378,22 @@ function openQrModal(empId) {
 
   document.getElementById("qr-employee-name-label").innerText = emp.name;
   document.getElementById("qr-employee-id-label").innerText = `ID: ${emp.id}`;
+  activeQrModalEmployeeId = emp.id;
 
-  const qrContainer = document.getElementById("employee-qr-canvas");
-  qrContainer.innerHTML = "";
-  
-  // Generate employee personal static QR code (its ID)
-  new QRCode(qrContainer, {
-    text: emp.id,
-    width: 180,
-    height: 180,
-    colorDark : "#0f172a",
-    colorLight : "#ffffff",
-    correctLevel : QRCode.CorrectLevel.H
-  });
+  generateAdminQrModalCode(emp);
 
   document.getElementById("qr-modal").classList.add("active");
 }
 
 function closeQrModal() {
   document.getElementById("qr-modal").classList.remove("active");
+  activeQrModalEmployeeId = null;
+}
+
+function generateAdminQrModalCode(emp) {
+  const qrContainer = document.getElementById("employee-qr-canvas");
+  if (!qrContainer || !emp) return;
+  renderQrCode(qrContainer, buildEmployeeQrPayload(emp), 180);
 }
 
 // --- DYNAMIC TOAST NOTIFICATIONS ---
