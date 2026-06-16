@@ -31,3 +31,24 @@ localStorage.setItem("bolashaq_api_base", "https://YOUR_BACKEND_DOMAIN/api")
 ```
 
 The current static Vercel frontend cannot host this Django server by itself; deploy the backend separately and point the frontend to its `/api` URL.
+
+## Environment variables
+
+Recommended production values:
+
+```powershell
+$env:DJANGO_SECRET_KEY="replace-with-a-long-secret"
+$env:DJANGO_DEBUG="0"
+$env:DJANGO_ALLOWED_HOSTS="api.example.com"
+$env:CORS_ALLOWED_ORIGINS="https://example.com"
+$env:BOLASHAQ_ADMIN_API_KEY="replace-with-admin-api-key"
+$env:BOLASHAQ_REQUIRE_ADMIN_API_KEY="1"
+```
+
+When `BOLASHAQ_REQUIRE_ADMIN_API_KEY=1`, admin-style read endpoints such as `/api/employees/`, `/api/logs/`, and `/api/employees/<id>/logs/` require:
+
+```text
+X-Bolashaq-Admin-Key: replace-with-admin-api-key
+```
+
+Public endpoints intentionally remain available for the demo flow: `/api/health/`, `/api/auth/employee/`, `/api/gate-qr/`, and `/api/attendance/scan/`.

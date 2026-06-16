@@ -1,0 +1,49 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/terminal.html",
+      "destination": "/terminal",
+      "permanent": true
+    },
+    {
+      "source": "/employee.html",
+      "destination": "/employee",
+      "permanent": true
+    },
+    {
+      "source": "/admin.html",
+      "destination": "/admin",
+      "permanent": true
+    },
+    {
+      "source": "/owner.html",
+      "destination": "/owner",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/terminal",
+      "destination": "/terminal.html"
+    },
+    {
+      "source": "/employee",
+      "destination": "/employee.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/owner",
+      "destination": "/owner.html"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -6,6 +7,18 @@ from rest_framework.response import Response
 
 from .models import AttendanceLog, Employee, GateQr
 from .services import parse_gate_qr, register_scan
+
+
+def require_admin_api_key(request):
+    if not settings.BOLASHAQ_REQUIRE_ADMIN_API_KEY:
+        return None
+
+    expected_key = settings.BOLASHAQ_ADMIN_API_KEY
+    provided_key = request.headers.get("X-Bolashaq-Admin-Key", "").strip()
+    if expected_key and provided_key == expected_key:
+        return None
+
+    return Response({"detail": "Admin API key is required."}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 def employee_to_dict(employee):
@@ -60,6 +73,10 @@ def health(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def employees_list(request):
+    auth_error = require_admin_api_key(request)
+    if auth_error:
+        return auth_error
+
     employees = Employee.objects.filter(is_active=True).prefetch_related("schedules")
     return Response({"employees": [employee_to_dict(employee) for employee in employees]})
 
@@ -67,6 +84,10 @@ def employees_list(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def logs_list(request):
+    auth_error = require_admin_api_key(request)
+    if auth_error:
+        return auth_error
+
     logs = AttendanceLog.objects.select_related("employee").all()[:300]
     return Response({"logs": [log_to_dict(log) for log in logs]})
 
@@ -90,6 +111,10 @@ def employee_login(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def employee_logs(request, public_id):
+    auth_error = require_admin_api_key(request)
+    if auth_error:
+        return auth_error
+
     employee = Employee.objects.filter(public_id=public_id, is_active=True).first()
     if not employee:
         return Response({"detail": "Сотрудник не найден."}, status=status.HTTP_404_NOT_FOUND)

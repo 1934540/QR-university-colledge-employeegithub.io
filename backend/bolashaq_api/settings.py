@@ -26,13 +26,22 @@ SECRET_KEY = os.environ.get(
     "django-insecure-dev-bolashaq-qr-change-me",
 )
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 
-ALLOWED_HOSTS = os.environ.get(
+BOLASHAQ_ADMIN_API_KEY = os.environ.get("BOLASHAQ_ADMIN_API_KEY", "").strip()
+BOLASHAQ_REQUIRE_ADMIN_API_KEY = os.environ.get(
+    "BOLASHAQ_REQUIRE_ADMIN_API_KEY",
+    "0" if DEBUG else "1",
+) == "1"
+
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get(
     "DJANGO_ALLOWED_HOSTS",
     "localhost,127.0.0.1,bolashaqqr.vercel.app",
-).split(",")
+    ).split(",")
+    if host.strip()
+]
 
 
 # Application definition
@@ -128,6 +137,13 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+SESSION_COOKIE_SECURE = os.environ.get("DJANGO_SESSION_COOKIE_SECURE", "0" if DEBUG else "1") == "1"
+CSRF_COOKIE_SECURE = os.environ.get("DJANGO_CSRF_COOKIE_SECURE", "0" if DEBUG else "1") == "1"
+SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "0") == "1"
+SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "0" if DEBUG else "31536000"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", "0" if DEBUG else "1") == "1"
+SECURE_HSTS_PRELOAD = os.environ.get("DJANGO_SECURE_HSTS_PRELOAD", "0" if DEBUG else "1") == "1"
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip()

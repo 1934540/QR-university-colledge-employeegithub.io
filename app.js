@@ -112,15 +112,21 @@ function getApiBaseUrl() {
   return "http://127.0.0.1:8000/api";
 }
 
+function getAdminApiKey() {
+  return window.BOLASHAQ_ADMIN_API_KEY || localStorage.getItem("bolashaq_admin_api_key") || "";
+}
+
 async function apiRequest(path, options = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const adminApiKey = getAdminApiKey();
 
   try {
     const response = await fetch(`${getApiBaseUrl()}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        ...(adminApiKey ? { "X-Bolashaq-Admin-Key": adminApiKey } : {}),
         ...(options.headers || {})
       },
       signal: controller.signal
@@ -620,16 +626,17 @@ function playSound(type) {
 
 // --- VIEW CONTROLLER ---
 function getViewFromPageName() {
-  const page = window.location.pathname.split("/").pop().toLowerCase();
-  if (page === "employee.html") return "employee";
-  if (page === "admin.html") return "admin";
-  if (page === "owner.html") return "owner";
+  const page = window.location.pathname.split("/").filter(Boolean).pop()?.toLowerCase() || "";
+  if (page === "employee" || page === "employee.html") return "employee";
+  if (page === "admin" || page === "admin.html") return "admin";
+  if (page === "owner" || page === "owner.html") return "owner";
+  if (page === "terminal" || page === "terminal.html") return "terminal";
   return "terminal";
 }
 
 function openViewWindow(mode) {
   const normalizedMode = ["terminal", "employee", "admin", "owner"].includes(mode) ? mode : "terminal";
-  window.location.href = `${normalizedMode}.html`;
+  window.location.href = `/${normalizedMode}`;
 }
 
 function switchViewMode(mode) {
