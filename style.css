@@ -189,24 +189,30 @@ body {
   border-color: var(--accent-indigo);
 }
 
-body[data-view-mode="employee"] .system-clock-bar {
+body[data-view-mode="employee"] .system-clock-bar,
+body[data-view-mode="terminal"] .system-clock-bar {
   justify-content: center;
   padding: 10px 14px;
   background: rgba(19, 26, 43, 0.72);
 }
 
-body[data-view-mode="employee"] .clock-display {
+body[data-view-mode="employee"] .clock-display,
+body[data-view-mode="terminal"] .clock-display {
   width: 100%;
   justify-content: center;
 }
 
 body[data-view-mode="employee"] .clock-display > i,
 body[data-view-mode="employee"] .clock-display > span:not(.time),
-body[data-view-mode="employee"] .clock-controls {
+body[data-view-mode="employee"] .clock-controls,
+body[data-view-mode="terminal"] .clock-display > i,
+body[data-view-mode="terminal"] .clock-display > span:not(.time),
+body[data-view-mode="terminal"] .clock-controls {
   display: none;
 }
 
-body[data-view-mode="employee"] .clock-display .time {
+body[data-view-mode="employee"] .clock-display .time,
+body[data-view-mode="terminal"] .clock-display .time {
   width: auto;
   border: 0;
   background: transparent;

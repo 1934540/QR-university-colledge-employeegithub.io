@@ -323,7 +323,7 @@ function updateClockDisplay() {
   const formattedDate = dateObj.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
   
   // System display
-  const systemTimeText = currentViewMode === "employee"
+  const systemTimeText = ["employee", "terminal"].includes(currentViewMode)
     ? `${dayName}, ${mockTime.time}`
     : `${dayName}, ${mockTime.time} (${formattedDate})`;
   document.getElementById("system-time-display").innerText = systemTimeText;
