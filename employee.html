@@ -72,10 +72,10 @@
         <p><strong>QR-код входа:</strong> общий код терминала.</p>
         <p style="margin-top: 4px; font-size: 0.8rem; color: var(--text-muted);">ID терминала: BOLASHAQ-MAIN-GATE-01</p>
       </div>
-      <button class="terminal-scan-btn" onclick="openTerminalScanner()">
+      <button class="terminal-scan-btn" onclick="openTerminalScanner()" hidden>
         <i data-lucide="scan-line"></i> Сканировать QR сотрудника
       </button>
-      <div class="terminal-camera-panel" id="terminal-camera-panel">
+      <div class="terminal-camera-panel" id="terminal-camera-panel" hidden>
         <div class="terminal-camera-header">
           <span><i data-lucide="camera"></i> Камера терминала</span>
           <button onclick="closeTerminalScanner()" title="Закрыть сканер"><i data-lucide="x"></i></button>
@@ -164,7 +164,7 @@
           </div>
 
           <div class="employee-tab-panel active" id="employee-tab-scan">
-            <div class="employee-qr-card">
+            <div class="employee-qr-card" hidden>
               <div class="employee-qr-header">
                 <span><i data-lucide="qr-code"></i> Мой QR для прохода</span>
               </div>
@@ -175,7 +175,7 @@
               <button class="scan-camera-btn" onclick="openMobileScanner()">
                 <i data-lucide="scan-line"></i> Сканировать QR входа
               </button>
-              <button class="scan-sim-btn" onclick="simulateCheckIn()">
+              <button class="scan-sim-btn" onclick="simulateCheckIn()" hidden>
                 <i data-lucide="play"></i> Симулировать сканирование
               </button>
             </div>

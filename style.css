@@ -1,6 +1,10 @@
 /* BolashaqQR Premium Dark CSS Stylesheet */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
+[hidden] {
+  display: none !important;
+}
+
 :root {
   --bg-primary: #090d16;
   --bg-secondary: #131a2b;

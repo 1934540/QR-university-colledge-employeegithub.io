@@ -10,7 +10,8 @@ let currentEmployeeTab = "scan"; // scan | schedule | duty | attendance
 let adminLoggedIn = false;
 let adminAccessRole = null; // admin | owner
 let currentAdminOrganization = null; // university | pedcollege | medcollege
-let currentEmployeeId = localStorage.getItem("bolashaq_current_employee") || null;
+const EMPLOYEE_SESSION_STORAGE_KEY = "bolashaq_current_employee";
+let currentEmployeeId = sessionStorage.getItem(EMPLOYEE_SESSION_STORAGE_KEY) || null;
 let mockTime = {
   date: "2026-06-01",
   time: "08:30",
@@ -33,6 +34,7 @@ let activeQrModalEmployeeId = null;
 let attendanceChart = null;
 
 const QR_REFRESH_MS = 30000;
+const QR_SLOT_TOLERANCE = 4;
 
 const EMPLOYEE_EXCEL_HEADERS = [
   "ФИО",
@@ -227,7 +229,7 @@ function getQrTimeSlot() {
 }
 
 function buildGateQrPayload() {
-  return `BOLASHAQ-MAIN-GATE:${getQrTimeSlot()}`;
+  return "BOLASHAQ-MAIN-GATE-01";
 }
 
 function buildEmployeeQrPayload(emp) {
@@ -250,14 +252,39 @@ function renderQrCode(container, text, size) {
 function isFreshQrSlot(slotText) {
   const slot = Number(slotText);
   if (!Number.isFinite(slot)) return true;
-  return Math.abs(getQrTimeSlot() - slot) <= 1;
+  return Math.abs(getQrTimeSlot() - slot) <= QR_SLOT_TOLERANCE;
 }
 
 function isGateQrPayload(decodedText) {
   const text = String(decodedText || "").trim();
-  if (text === "BOLASHAQ-MAIN-GATE") return true;
-  const parts = text.split(":");
-  return parts[0] === "BOLASHAQ-MAIN-GATE" && isFreshQrSlot(parts[1]);
+  if (!text) return false;
+
+  const gatePayloads = new Set([
+    "BOLASHAQ-MAIN-GATE",
+    "BOLASHAQ-MAIN-GATE-01"
+  ]);
+
+  if (gatePayloads.has(text)) return true;
+  if (text.startsWith("BOLASHAQ-MAIN-GATE:")) {
+    const parts = text.split(":");
+    return isFreshQrSlot(parts[1]);
+  }
+
+  try {
+    const url = new URL(text);
+    const qrValue = url.searchParams.get("gateQr")
+      || url.searchParams.get("qr")
+      || url.searchParams.get("gate")
+      || url.searchParams.get("token");
+
+    if (qrValue) {
+      return isGateQrPayload(qrValue);
+    }
+
+    return url.pathname === "/" && url.hostname === window.location.hostname;
+  } catch (err) {
+    return false;
+  }
 }
 
 function refreshRealtimeQRCodes() {
@@ -583,12 +610,14 @@ function renderEmployeeAuthState() {
   if (!loginCard || !appContent) return;
 
   if (emp) {
+    localStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
     loginCard.style.display = "none";
     appContent.style.display = "flex";
     refreshEmployeeMobileView();
   } else {
     currentEmployeeId = null;
-    localStorage.removeItem("bolashaq_current_employee");
+    sessionStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
+    localStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
     loginCard.style.display = "flex";
     appContent.style.display = "none";
   }
@@ -615,7 +644,8 @@ function loginEmployeeAccount() {
   }
 
   currentEmployeeId = emp.id;
-  localStorage.setItem("bolashaq_current_employee", currentEmployeeId);
+  sessionStorage.setItem(EMPLOYEE_SESSION_STORAGE_KEY, currentEmployeeId);
+  localStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
   usernameInput.value = "";
   passwordInput.value = "";
   renderEmployeeAuthState();
@@ -624,14 +654,20 @@ function loginEmployeeAccount() {
 
 function logoutEmployeeAccount() {
   currentEmployeeId = null;
-  localStorage.removeItem("bolashaq_current_employee");
+  sessionStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
+  localStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
   closeMobileScanner();
   renderEmployeeAuthState();
   showToast("Вы вышли из аккаунта сотрудника", "info");
 }
 
+function getAuthenticatedEmployee() {
+  if (!currentEmployeeId) return null;
+  return employees.find(e => e.id === currentEmployeeId) || null;
+}
+
 function switchEmployeeTab(tab) {
-  const account = employees.find(e => e.id === currentEmployeeId);
+  const account = getAuthenticatedEmployee();
   const allowedTabs = isStudentAccount(account)
     ? ["scan", "attendance"]
     : ["scan", "schedule", "duty", "groups", "attendance"];
@@ -1643,7 +1679,12 @@ function closeTerminalScanner() {
 
 // --- WEBCAM SCANNING CONTROLLER ---
 async function openMobileScanner() {
-  if (!currentEmployeeId) {
+  const authenticatedEmployee = getAuthenticatedEmployee();
+  if (!authenticatedEmployee) {
+    currentEmployeeId = null;
+    sessionStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
+    localStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
+    renderEmployeeAuthState();
     showToast("Сначала войдите в аккаунт сотрудника", "error");
     return;
   }
@@ -1675,7 +1716,7 @@ async function openMobileScanner() {
         // Successfully scanned the gate! Execute check in/out for current user
         const isAllowedNow = await ensureInsideGeoFence();
         if (isAllowedNow) {
-          executeCheckInOrOut(currentEmployeeId);
+          executeCheckInOrOut(authenticatedEmployee.id);
           closeMobileScanner();
         } else {
           scannerProcessing = false;
@@ -1715,7 +1756,12 @@ function closeMobileScanner() {
 }
 
 async function simulateCheckIn() {
-  if (!currentEmployeeId) {
+  const authenticatedEmployee = getAuthenticatedEmployee();
+  if (!authenticatedEmployee) {
+    currentEmployeeId = null;
+    sessionStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
+    localStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
+    renderEmployeeAuthState();
     showToast("Сначала войдите в аккаунт сотрудника", "error");
     return;
   }
@@ -1723,7 +1769,7 @@ async function simulateCheckIn() {
   const isAllowed = await ensureInsideGeoFence();
   if (!isAllowed) return;
 
-  executeCheckInOrOut(currentEmployeeId);
+  executeCheckInOrOut(authenticatedEmployee.id);
 }
 
 // --- ADMIN SYSTEM PANEL CONTROLS ---
@@ -2207,7 +2253,7 @@ function renderEmployeesList() {
       </div>
       
       <div class="employee-card-actions">
-        <button class="card-btn" onclick="openQrModal('${emp.id}')">
+        <button class="card-btn" onclick="openQrModal('${emp.id}')" hidden>
           <i data-lucide="qr-code" style="width:12px; height:12px;"></i> QR-пропуск
         </button>
         
@@ -2253,7 +2299,8 @@ function deleteEmployee(empId) {
     renderEmployeesList();
     if (currentEmployeeId === empId) {
       currentEmployeeId = null;
-      localStorage.removeItem("bolashaq_current_employee");
+      sessionStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
+      localStorage.removeItem(EMPLOYEE_SESSION_STORAGE_KEY);
     }
     renderEmployeeAuthState();
   }
