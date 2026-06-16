@@ -289,6 +289,13 @@ function initMockTime() {
   const daySelect = document.getElementById("mock-day-select");
   const timeInput = document.getElementById("mock-time-input");
   const dateInput = document.getElementById("mock-date-input");
+  const tickCheckbox = document.getElementById("mock-tick-checkbox");
+
+  if (tickCheckbox?.checked) {
+    syncMockTimeToRealTime();
+    toggleTimeTicking();
+    return;
+  }
 
   mockTime.day = parseInt(daySelect.value);
   mockTime.time = timeInput.value;
@@ -314,7 +321,62 @@ function updateMockTimeSettings() {
   }
 }
 
-function updateClockDisplay() {
+function formatLocalDateInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getRealTimeSnapshot() {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+
+  return {
+    date: formatLocalDateInput(now),
+    day: now.getDay(),
+    time: `${hours}:${minutes}`,
+    displayTime: `${hours}:${minutes}:${seconds}`
+  };
+}
+
+function refreshTimeSensitiveViews() {
+  refreshEmployeeMobileView();
+  if (currentViewMode === "terminal") {
+    renderTerminalFeed();
+  }
+  if (adminLoggedIn) {
+    updateAdminDashboard();
+  }
+}
+
+function syncMockTimeToRealTime({ refreshViews = false } = {}) {
+  const previousKey = `${mockTime.date}|${mockTime.day}|${mockTime.time}`;
+  const snapshot = getRealTimeSnapshot();
+
+  mockTime.date = snapshot.date;
+  mockTime.day = snapshot.day;
+  mockTime.time = snapshot.time;
+
+  const daySelect = document.getElementById("mock-day-select");
+  const timeInput = document.getElementById("mock-time-input");
+  const dateInput = document.getElementById("mock-date-input");
+
+  if (daySelect) daySelect.value = String(mockTime.day);
+  if (timeInput) timeInput.value = mockTime.time;
+  if (dateInput) dateInput.value = mockTime.date;
+
+  updateClockDisplay(snapshot.displayTime);
+
+  const nextKey = `${mockTime.date}|${mockTime.day}|${mockTime.time}`;
+  if (refreshViews && previousKey !== nextKey) {
+    refreshTimeSensitiveViews();
+  }
+}
+
+function updateClockDisplay(displayTime = mockTime.time) {
   const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
   const dayName = dayNames[mockTime.day];
   
@@ -324,8 +386,8 @@ function updateClockDisplay() {
   
   // System display
   const systemTimeText = ["employee", "terminal"].includes(currentViewMode)
-    ? `${dayName}, ${mockTime.time}`
-    : `${dayName}, ${mockTime.time} (${formattedDate})`;
+    ? `${dayName}, ${displayTime}`
+    : `${dayName}, ${displayTime} (${formattedDate})`;
   document.getElementById("system-time-display").innerText = systemTimeText;
   
   // Mobile phone display
@@ -344,32 +406,10 @@ function toggleTimeTicking() {
   }
 
   if (isTicking) {
+    syncMockTimeToRealTime({ refreshViews: true });
     mockTime.timerId = setInterval(() => {
-      // Add 1 minute to mock time
-      let [hours, minutes] = mockTime.time.split(":").map(Number);
-      minutes += 1;
-      if (minutes >= 60) {
-        minutes = 0;
-        hours += 1;
-        if (hours >= 24) {
-          hours = 0;
-          // Advance day of week
-          mockTime.day = (mockTime.day + 1) % 7;
-          document.getElementById("mock-day-select").value = mockTime.day;
-          
-          // Advance date calendar
-          let currentDate = new Date(mockTime.date);
-          currentDate.setDate(currentDate.getDate() + 1);
-          mockTime.date = currentDate.toISOString().split("T")[0];
-          document.getElementById("mock-date-input").value = mockTime.date;
-        }
-      }
-      
-      mockTime.time = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-      document.getElementById("mock-time-input").value = mockTime.time;
-      
-      updateClockDisplay();
-    }, 1000); // 1 real second = 1 mock minute
+      syncMockTimeToRealTime({ refreshViews: true });
+    }, 1000);
   }
 }
 
