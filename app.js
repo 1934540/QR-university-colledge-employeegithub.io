@@ -35,6 +35,7 @@ let attendanceChart = null;
 
 const QR_REFRESH_MS = 30000;
 const QR_SLOT_TOLERANCE = 4;
+const API_TIMEOUT_MS = 5000;
 
 const EMPLOYEE_EXCEL_HEADERS = [
   "ФИО",
@@ -91,6 +92,7 @@ function normalizeAdminAccounts(accounts) {
 // --- INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", () => {
   initData();
+  syncBackendBootstrap();
   initMockTime();
   generateEntranceQR();
   const requestedView = new URLSearchParams(window.location.search).get("view") || getViewFromPageName();
@@ -100,6 +102,122 @@ document.addEventListener("DOMContentLoaded", () => {
   startRealtimeQrRefresh();
   lucide.createIcons();
 });
+
+function getApiBaseUrl() {
+  const configured = window.BOLASHAQ_API_BASE || localStorage.getItem("bolashaq_api_base") || "";
+  if (configured) return configured.replace(/\/$/, "");
+  if (window.location.protocol.startsWith("http")) {
+    return `${window.location.origin}/api`;
+  }
+  return "http://127.0.0.1:8000/api";
+}
+
+async function apiRequest(path, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      },
+      signal: controller.signal
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload.detail || `API error ${response.status}`;
+      throw new Error(message);
+    }
+    return payload;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function upsertEmployeeFromApi(apiEmployee) {
+  if (!apiEmployee || !apiEmployee.id) return null;
+
+  const normalized = {
+    id: apiEmployee.id,
+    uid: apiEmployee.uid,
+    name: apiEmployee.name,
+    role: apiEmployee.role,
+    organization: apiEmployee.organization,
+    department: apiEmployee.department || apiEmployee.studentGroup || "",
+    studentGroup: apiEmployee.studentGroup || "",
+    username: apiEmployee.username,
+    avatar: apiEmployee.avatar || "",
+    isVip: Boolean(apiEmployee.isVip),
+    schedules: apiEmployee.schedules || []
+  };
+
+  const index = employees.findIndex(item => item.id === normalized.id);
+  if (index >= 0) {
+    employees[index] = { ...employees[index], ...normalized };
+  } else {
+    employees.push(normalized);
+  }
+
+  localStorage.setItem("bolashaq_employees", JSON.stringify(employees));
+  return normalized;
+}
+
+function upsertLogFromApi(apiLog) {
+  if (!apiLog || !apiLog.id) return null;
+
+  const index = logs.findIndex(item => item.id === apiLog.id || (
+    item.employeeId === apiLog.employeeId && item.date === apiLog.date
+  ));
+
+  if (index >= 0) {
+    logs[index] = { ...logs[index], ...apiLog };
+  } else {
+    logs.push(apiLog);
+  }
+
+  localStorage.setItem("bolashaq_logs", JSON.stringify(logs));
+  return apiLog;
+}
+
+async function syncBackendBootstrap() {
+  try {
+    const [employeesPayload, logsPayload] = await Promise.all([
+      apiRequest("/employees/"),
+      apiRequest("/logs/")
+    ]);
+
+    if (Array.isArray(employeesPayload.employees)) {
+      employees = employeesPayload.employees.map(item => ({
+        id: item.id,
+        uid: item.uid,
+        name: item.name,
+        role: item.role,
+        organization: item.organization,
+        department: item.department || item.studentGroup || "",
+        studentGroup: item.studentGroup || "",
+        username: item.username,
+        avatar: item.avatar || "",
+        isVip: Boolean(item.isVip),
+        schedules: item.schedules || []
+      }));
+      localStorage.setItem("bolashaq_employees", JSON.stringify(employees));
+    }
+
+    if (Array.isArray(logsPayload.logs)) {
+      logs = logsPayload.logs;
+      localStorage.setItem("bolashaq_logs", JSON.stringify(logs));
+    }
+
+    renderEmployeeAuthState();
+    if (currentViewMode === "terminal") renderTerminalFeed();
+    if (adminLoggedIn) updateAdminDashboard();
+  } catch (err) {
+    console.info("Backend API is not available, using local data.", err.message);
+  }
+}
 
 // Initialize database from localStorage or mockData
 function initData() {
@@ -623,7 +741,7 @@ function renderEmployeeAuthState() {
   }
 }
 
-function loginEmployeeAccount() {
+async function loginEmployeeAccount() {
   const usernameInput = document.getElementById("employee-login-username");
   const passwordInput = document.getElementById("employee-login-password");
   const username = usernameInput.value.trim().toLowerCase();
@@ -634,7 +752,24 @@ function loginEmployeeAccount() {
     return;
   }
 
-  const emp = employees.find(e => String(e.username || "").toLowerCase() === username && String(e.password || "") === password);
+  let emp = null;
+  let apiRejectedLogin = false;
+
+  try {
+    const payload = await apiRequest("/auth/employee/", {
+      method: "POST",
+      body: JSON.stringify({ username, password })
+    });
+    emp = upsertEmployeeFromApi(payload.employee);
+  } catch (err) {
+    apiRejectedLogin = !["Failed to fetch", "The operation was aborted."].includes(err.message);
+    console.info("Employee API login unavailable or rejected:", err.message);
+  }
+
+  if (!emp && !apiRejectedLogin) {
+    emp = employees.find(e => String(e.username || "").toLowerCase() === username && String(e.password || "") === password);
+  }
+
   if (!emp) {
     showToast("Неверный логин или пароль", "error");
     playSound("error");
@@ -1299,13 +1434,39 @@ function calculateEmployeeStats(empId) {
 }
 
 // --- ATTENDANCE SCAN LOGIC ---
-function executeCheckInOrOut(empId) {
+async function syncAttendanceScanWithBackend(empId, qrPayload) {
+  const emp = employees.find(e => e.id === empId);
+  if (!emp) return null;
+
+  try {
+    const payload = await apiRequest("/attendance/scan/", {
+      method: "POST",
+      body: JSON.stringify({
+        employeeId: emp.id,
+        employeeUid: emp.uid || "",
+        qrPayload: qrPayload || "BOLASHAQ-MAIN-GATE-01",
+        scannedAt: new Date().toISOString()
+      })
+    });
+
+    if (payload.employee) upsertEmployeeFromApi(payload.employee);
+    if (payload.log) upsertLogFromApi(payload.log);
+    return payload;
+  } catch (err) {
+    console.info("Attendance API scan unavailable:", err.message);
+    return null;
+  }
+}
+
+function executeCheckInOrOut(empId, qrPayload = "BOLASHAQ-MAIN-GATE-01") {
   const emp = employees.find(e => e.id === empId);
   if (!emp) {
     showToast("Сотрудник не найден!", "error");
     playSound("error");
     return;
   }
+
+  syncAttendanceScanWithBackend(empId, qrPayload);
 
   const currentDateStr = mockTime.date;
   const currentTimeStr = mockTime.time;
@@ -1716,7 +1877,7 @@ async function openMobileScanner() {
         // Successfully scanned the gate! Execute check in/out for current user
         const isAllowedNow = await ensureInsideGeoFence();
         if (isAllowedNow) {
-          executeCheckInOrOut(authenticatedEmployee.id);
+          executeCheckInOrOut(authenticatedEmployee.id, decodedText);
           closeMobileScanner();
         } else {
           scannerProcessing = false;

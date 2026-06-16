@@ -2,3 +2,9 @@ dev-server.log
 dev-server.err.log
 node_modules/
 .DS_Store
+__pycache__/
+*.pyc
+backend/.venv/
+backend/db.sqlite3
+backend/staticfiles/
+backend/.env
