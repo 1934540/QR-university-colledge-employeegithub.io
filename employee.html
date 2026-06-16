@@ -153,6 +153,10 @@
               <i data-lucide="clipboard-check"></i>
               <span>Дежурство</span>
             </button>
+            <button class="employee-tab-btn" id="employee-tab-btn-groups" onclick="switchEmployeeTab('groups')">
+              <i data-lucide="graduation-cap"></i>
+              <span>Группы</span>
+            </button>
             <button class="employee-tab-btn" id="employee-tab-btn-attendance" onclick="switchEmployeeTab('attendance')">
               <i data-lucide="list-checks"></i>
               <span>Журнал</span>
@@ -216,6 +220,36 @@
                 </div>
               </div>
               <div class="mobile-duty-note" id="emp-duty-note">Если сотрудник назначен дежурным, админ может указать это в примечании или расписании.</div>
+            </div>
+          </div>
+
+          <div class="employee-tab-panel" id="employee-tab-groups">
+            <div class="mobile-student-box">
+              <h3 class="section-title"><i data-lucide="graduation-cap"></i> Мои группы студентов</h3>
+              <div class="student-group-list" id="employee-student-groups-list"></div>
+              <div class="student-group-editor" id="employee-group-editor">
+                <div class="employee-schedule-editor-title"><i data-lucide="folder-plus"></i> Создать группу</div>
+                <div class="student-inline-form">
+                  <input type="text" id="student-group-name-input" placeholder="Группа, например IT-21">
+                  <button class="employee-schedule-add-btn" onclick="addOwnStudentGroup()">
+                    <i data-lucide="plus"></i> Создать
+                  </button>
+                </div>
+              </div>
+              <div class="student-group-editor" id="employee-student-editor">
+                <div class="employee-schedule-editor-title"><i data-lucide="user-plus"></i> Добавить студента в группу</div>
+                <select id="student-group-select">
+                  <option value="">Сначала создайте группу</option>
+                </select>
+                <input type="text" id="student-name-input" placeholder="ФИО студента">
+                <div class="employee-schedule-row">
+                  <input type="text" id="student-login-input" placeholder="Логин">
+                  <input type="text" id="student-password-input" placeholder="Пароль">
+                </div>
+                <button class="employee-schedule-add-btn" onclick="addStudentToOwnGroup()">
+                  <i data-lucide="plus"></i> Добавить студента
+                </button>
+              </div>
             </div>
           </div>
 

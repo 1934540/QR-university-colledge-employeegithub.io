@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -501,7 +502,7 @@
                 </div>
               </div>
             </div>
-            <div class="employee-account-grid">
+            <div class="employee-account-grid owner-credentials-box">
               <div class="form-group">
                 <label for="settings-owner-login">Логин владельца:</label>
                 <input type="text" id="settings-owner-login" value="owner">
@@ -549,6 +550,24 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="edit-employee-id">
+        <div class="employee-excel-tools">
+          <div>
+            <strong>Excel для сотрудников</strong>
+            <span>Скачайте пример, заполните строки и загрузите файл обратно.</span>
+          </div>
+          <div class="employee-excel-actions">
+            <a class="btn-secondary excel-link-btn" href="employee-template.xlsx" download>
+              <i data-lucide="file-spreadsheet"></i> Скачать пример
+            </a>
+            <button type="button" class="btn-secondary" onclick="exportEmployeesToExcel()">
+              <i data-lucide="download"></i> Экспорт сотрудников
+            </button>
+            <label class="action-btn excel-upload-btn" for="employee-excel-input">
+              <i data-lucide="upload"></i> Загрузить Excel
+            </label>
+            <input type="file" id="employee-excel-input" accept=".xlsx,.xls" onchange="importEmployeesFromExcel(this)">
+          </div>
+        </div>
         <div class="form-group">
           <label for="employee-name-input">ФИО сотрудника:</label>
           <input type="text" id="employee-name-input" placeholder="Иванов Иван Иванович" required>

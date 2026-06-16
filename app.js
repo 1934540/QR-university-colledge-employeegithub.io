@@ -34,6 +34,17 @@ let attendanceChart = null;
 
 const QR_REFRESH_MS = 30000;
 
+const EMPLOYEE_EXCEL_HEADERS = [
+  "ФИО",
+  "Роль",
+  "Организация",
+  "Департамент",
+  "Логин",
+  "Пароль",
+  "Фото URL",
+  "VIP"
+];
+
 const ORGANIZATIONS = {
   university: "Университет",
   pedcollege: "Педколледж",
@@ -183,6 +194,34 @@ function getOrganizationName(org) {
   return ORGANIZATIONS[org] || ORGANIZATIONS.university;
 }
 
+function getRoleLabel(role) {
+  if (role === "teacher") return "Преподаватель";
+  if (role === "student") return "Студент";
+  return "Администрация";
+}
+
+function isStudentAccount(account) {
+  return account && account.role === "student";
+}
+
+function getStudentOwnerStudents(ownerId) {
+  return employees
+    .filter(item => item.role === "student" && item.ownerEmployeeId === ownerId)
+    .sort((a, b) => String(a.studentGroup || "").localeCompare(String(b.studentGroup || "")) || a.name.localeCompare(b.name));
+}
+
+function getOwnerStudentGroups(owner) {
+  if (!owner) return [];
+  const storedGroups = Array.isArray(owner.studentGroups) ? owner.studentGroups : [];
+  const groupsFromStudents = getStudentOwnerStudents(owner.id)
+    .map(student => student.studentGroup || student.department)
+    .filter(Boolean);
+  return [...new Set([...storedGroups, ...groupsFromStudents])]
+    .map(group => String(group).trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function getQrTimeSlot() {
   return Math.floor(Date.now() / QR_REFRESH_MS);
 }
@@ -284,7 +323,10 @@ function updateClockDisplay() {
   const formattedDate = dateObj.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
   
   // System display
-  document.getElementById("system-time-display").innerText = `${dayName}, ${mockTime.time} (${formattedDate})`;
+  const systemTimeText = currentViewMode === "employee"
+    ? `${dayName}, ${mockTime.time}`
+    : `${dayName}, ${mockTime.time} (${formattedDate})`;
+  document.getElementById("system-time-display").innerText = systemTimeText;
   
   // Mobile phone display
   document.getElementById("mobile-bar-time").innerText = mockTime.time;
@@ -407,6 +449,8 @@ function openViewWindow(mode) {
 
 function switchViewMode(mode) {
   currentViewMode = mode;
+  document.body.dataset.viewMode = mode;
+  updateClockDisplay();
   
   // Update nav buttons active states
   document.querySelectorAll(".mode-btn").forEach(btn => btn.classList.remove("active"));
@@ -547,7 +591,10 @@ function logoutEmployeeAccount() {
 }
 
 function switchEmployeeTab(tab) {
-  const allowedTabs = ["scan", "schedule", "duty", "attendance"];
+  const account = employees.find(e => e.id === currentEmployeeId);
+  const allowedTabs = isStudentAccount(account)
+    ? ["scan", "attendance"]
+    : ["scan", "schedule", "duty", "groups", "attendance"];
   currentEmployeeTab = allowedTabs.includes(tab) ? tab : "scan";
 
   document.querySelectorAll(".employee-tab-btn").forEach(btn => btn.classList.remove("active"));
@@ -565,6 +612,245 @@ function generateEmployeeMobileQR(emp) {
   if (!qrContainer || !emp) return;
 
   renderQrCode(qrContainer, buildEmployeeQrPayload(emp), 168);
+}
+
+function generateStudentId() {
+  const maxNumber = employees.reduce((max, item) => {
+    const match = String(item.id || "").match(/^STU(\d+)$/i);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return `STU${String(maxNumber + 1).padStart(3, "0")}`;
+}
+
+function addOwnStudentGroup() {
+  const owner = employees.find(e => e.id === currentEmployeeId);
+  if (!owner || isStudentAccount(owner)) {
+    showToast("Группы студентов доступны только сотрудникам", "error");
+    return;
+  }
+
+  const groupInput = document.getElementById("student-group-name-input");
+  const groupName = groupInput.value.trim();
+  if (!groupName) {
+    showToast("Введите название группы", "error");
+    return;
+  }
+
+  const existingGroups = getOwnerStudentGroups(owner).map(group => group.toLowerCase());
+  if (existingGroups.includes(groupName.toLowerCase())) {
+    showToast("Такая группа уже есть", "error");
+    return;
+  }
+
+  owner.studentGroups = Array.isArray(owner.studentGroups) ? owner.studentGroups : [];
+  owner.studentGroups.push(groupName);
+  localStorage.setItem("bolashaq_employees", JSON.stringify(employees));
+  groupInput.value = "";
+  renderStudentGroups(owner);
+  showToast("Группа создана", "success");
+}
+
+function addStudentToOwnGroup() {
+  const owner = employees.find(e => e.id === currentEmployeeId);
+  if (!owner || isStudentAccount(owner)) {
+    showToast("Группы студентов доступны только сотрудникам", "error");
+    return;
+  }
+
+  const groupInput = document.getElementById("student-group-select");
+  const nameInput = document.getElementById("student-name-input");
+  const loginInput = document.getElementById("student-login-input");
+  const passwordInput = document.getElementById("student-password-input");
+
+  const studentGroup = groupInput.value.trim();
+  const name = nameInput.value.trim();
+  const username = loginInput.value.trim().toLowerCase();
+  const password = passwordInput.value;
+
+  if (!studentGroup || !name || !username || !password) {
+    showToast("Заполните группу, ФИО, логин и пароль студента", "error");
+    return;
+  }
+
+  const duplicateLogin = employees.find(e => String(e.username || "").toLowerCase() === username);
+  if (duplicateLogin) {
+    showToast("Такой логин уже используется", "error");
+    return;
+  }
+
+  employees.push({
+    id: generateStudentId(),
+    name,
+    role: "student",
+    organization: owner.organization || "university",
+    department: studentGroup,
+    studentGroup,
+    ownerEmployeeId: owner.id,
+    ownerEmployeeName: owner.name,
+    username,
+    password,
+    avatar: "",
+    isVip: false,
+    schedules: []
+  });
+
+  localStorage.setItem("bolashaq_employees", JSON.stringify(employees));
+  nameInput.value = "";
+  loginInput.value = "";
+  passwordInput.value = "";
+  renderStudentGroups(owner);
+  showToast("Студент добавлен в группу", "success");
+}
+
+function deleteOwnStudent(studentId) {
+  const owner = employees.find(e => e.id === currentEmployeeId);
+  const student = employees.find(e => e.id === studentId && e.role === "student");
+  if (!owner || !student || student.ownerEmployeeId !== owner.id) return;
+
+  if (!confirm(`Удалить студента ${student.name}? Его журнал проходов тоже будет удален.`)) return;
+
+  employees = employees.filter(e => e.id !== studentId);
+  logs = logs.filter(l => l.employeeId !== studentId);
+  localStorage.setItem("bolashaq_employees", JSON.stringify(employees));
+  localStorage.setItem("bolashaq_logs", JSON.stringify(logs));
+  renderStudentGroups(owner);
+  showToast("Студент удален", "success");
+}
+
+function deleteOwnStudentGroup(groupName) {
+  const owner = employees.find(e => e.id === currentEmployeeId);
+  if (!owner || isStudentAccount(owner)) return;
+
+  const hasStudents = getStudentOwnerStudents(owner.id).some(student => (student.studentGroup || student.department) === groupName);
+  if (hasStudents) {
+    showToast("Сначала удалите студентов из группы", "error");
+    return;
+  }
+
+  if (!confirm(`Удалить группу ${groupName}?`)) return;
+
+  owner.studentGroups = getOwnerStudentGroups(owner).filter(group => group !== groupName);
+  localStorage.setItem("bolashaq_employees", JSON.stringify(employees));
+  renderStudentGroups(owner);
+  showToast("Группа удалена", "success");
+}
+
+function renderStudentGroups(owner) {
+  const container = document.getElementById("employee-student-groups-list");
+  const editor = document.getElementById("employee-student-editor");
+  if (!container || !editor) return;
+
+  const groupEditor = document.getElementById("employee-group-editor");
+  const groupSelect = document.getElementById("student-group-select");
+
+  if (!owner || isStudentAccount(owner)) {
+    container.innerHTML = "";
+    editor.style.display = "none";
+    if (groupEditor) groupEditor.style.display = "none";
+    return;
+  }
+
+  if (groupEditor) groupEditor.style.display = "flex";
+  const groups = getOwnerStudentGroups(owner);
+  editor.style.display = groups.length ? "flex" : "none";
+  if (groupSelect) {
+    groupSelect.innerHTML = groups.length
+      ? groups.map(group => `<option value="${group}">${group}</option>`).join("")
+      : `<option value="">Сначала создайте группу</option>`;
+  }
+
+  if (groups.length === 0) {
+    container.innerHTML = `<div style="text-align:center; color: var(--text-muted); font-size: 0.82rem; padding: 12px;">Сначала создайте группу</div>`;
+    return;
+  }
+
+  const grouped = groups.reduce((acc, groupName) => {
+    acc[groupName] = [];
+    return acc;
+  }, {});
+
+  getStudentOwnerStudents(owner.id).forEach(student => {
+    const groupName = student.studentGroup || student.department || "Без группы";
+    if (!grouped[groupName]) grouped[groupName] = [];
+    grouped[groupName].push(student);
+  });
+
+  container.innerHTML = "";
+  Object.keys(grouped).sort().forEach(groupName => {
+    const groupStudents = grouped[groupName];
+    const group = document.createElement("div");
+    group.className = "student-group-card";
+    group.innerHTML = `
+      <div class="student-group-title">
+        <span>${groupName}</span>
+        <div class="student-group-actions">
+          <span class="student-group-count">${groupStudents.length} студ.</span>
+          ${groupStudents.length === 0 ? `<button class="student-group-delete" onclick="deleteOwnStudentGroup('${groupName}')" title="Удалить группу"><i data-lucide="trash-2"></i></button>` : ""}
+        </div>
+      </div>
+      ${groupStudents.length ? groupStudents.map(student => `
+        <div class="student-row">
+          <div class="student-row-main">
+            <span class="student-name">${student.name}</span>
+            <span class="student-login">Логин: ${student.username || ""}</span>
+          </div>
+          <button class="student-delete-btn" onclick="deleteOwnStudent('${student.id}')" title="Удалить студента">
+            <i data-lucide="trash-2"></i>
+          </button>
+        </div>
+      `).join("") : `<div class="student-row student-empty-row"><span class="student-login">В этой группе пока нет студентов</span></div>`}
+    `;
+    container.appendChild(group);
+  });
+  lucide.createIcons();
+  return;
+
+  {
+  if (!owner || isStudentAccount(owner)) {
+    container.innerHTML = "";
+    editor.style.display = "none";
+    return;
+  }
+
+  editor.style.display = "flex";
+  const students = getStudentOwnerStudents(owner.id);
+  if (students.length === 0) {
+    container.innerHTML = `<div style="text-align:center; color: var(--text-muted); font-size: 0.82rem; padding: 12px;">Группы студентов пока пустые</div>`;
+    return;
+  }
+
+  const grouped = students.reduce((acc, student) => {
+    const groupName = student.studentGroup || student.department || "Без группы";
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push(student);
+    return acc;
+  }, {});
+
+  container.innerHTML = "";
+  Object.keys(grouped).sort().forEach(groupName => {
+    const group = document.createElement("div");
+    group.className = "student-group-card";
+    group.innerHTML = `
+      <div class="student-group-title">
+        <span>${groupName}</span>
+        <span class="student-group-count">${grouped[groupName].length} студ.</span>
+      </div>
+      ${grouped[groupName].map(student => `
+        <div class="student-row">
+          <div class="student-row-main">
+            <span class="student-name">${student.name}</span>
+            <span class="student-login">Логин: ${student.username || ""}</span>
+          </div>
+          <button class="student-delete-btn" onclick="deleteOwnStudent('${student.id}')" title="Удалить студента">
+            <i data-lucide="trash-2"></i>
+          </button>
+        </div>
+      `).join("")}
+    `;
+    container.appendChild(group);
+  });
+  lucide.createIcons();
+  }
 }
 
 function addOwnScheduleItem() {
@@ -665,6 +951,18 @@ function refreshEmployeeMobileView() {
   document.getElementById("emp-mobile-dept").innerText = emp.department;
   document.getElementById("emp-mobile-avatar").src = emp.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(emp.name)}`;
   generateEmployeeMobileQR(emp);
+  document.getElementById("emp-mobile-role").innerText = getRoleLabel(emp.role);
+  const studentMode = isStudentAccount(emp);
+  if (studentMode) {
+    document.getElementById("emp-mobile-dept").innerText = `${emp.studentGroup || emp.department || "Группа"} · куратор: ${emp.ownerEmployeeName || "сотрудник"}`;
+  }
+  ["schedule", "duty", "groups"].forEach(tab => {
+    const btn = document.getElementById(`employee-tab-btn-${tab}`);
+    if (btn) btn.style.display = studentMode ? "none" : "flex";
+  });
+  if (studentMode && !["scan", "attendance"].includes(currentEmployeeTab)) {
+    currentEmployeeTab = "scan";
+  }
   
   if (emp.isVip) {
     document.getElementById("emp-mobile-vip-badge").style.display = "flex";
@@ -681,6 +979,8 @@ function refreshEmployeeMobileView() {
   // Render Warning Alert if critical counts are high
   const warningCard = document.getElementById("emp-mobile-warning-card");
   const warningText = document.getElementById("emp-mobile-warning-text");
+  const statsGrid = document.querySelector(".mobile-stats-grid");
+  if (statsGrid) statsGrid.style.display = studentMode ? "none" : "grid";
   
   const K = settings.accumulateThreshold;
   const violatorThreshold = settings.violatorThreshold;
@@ -688,7 +988,9 @@ function refreshEmployeeMobileView() {
   // Calculate remaining regular latenesses until next critical
   const leftToNextCrit = K - (stats.regularUnexcused % K);
   
-  if (stats.criticalTotal >= violatorThreshold) {
+  if (studentMode) {
+    warningCard.style.display = "none";
+  } else if (stats.criticalTotal >= violatorThreshold) {
     warningCard.style.display = "block";
     warningCard.style.borderLeft = "4px solid var(--status-critical)";
     warningText.innerHTML = `<span class="bold-alert">Внимание!</span> Вы в папке критических нарушителей (${stats.criticalTotal} крит. нарушений).`;
@@ -700,12 +1002,16 @@ function refreshEmployeeMobileView() {
     warningCard.style.display = "none";
   }
 
+  renderStudentGroups(emp);
+
   // Load Schedule Today
   const scheduleList = document.getElementById("emp-mobile-schedule-list");
   const scheduleEditor = document.getElementById("employee-schedule-editor");
   scheduleList.innerHTML = "";
   
-  if (emp.role === "staff") {
+  if (studentMode) {
+    if (scheduleEditor) scheduleEditor.style.display = "none";
+  } else if (emp.role === "staff") {
     if (scheduleEditor) scheduleEditor.style.display = "none";
     const item = document.createElement("div");
     item.className = "mobile-schedule-item";
@@ -800,6 +1106,10 @@ function refreshEmployeeMobileView() {
 
 // --- EVALUATOR LOGIC ---
 function calculateLateness(emp, checkInTimeStr, dayOfWeek, dateStr) {
+  if (isStudentAccount(emp)) {
+    return { status: "normal", details: `Студент ${emp.studentGroup || emp.department || ""}: проход зафиксирован.` };
+  }
+
   if (emp.isVip) {
     return { status: "vip", details: "Прибытие по VIP-статусу. Опоздания не фиксируются." };
   }
@@ -924,6 +1234,7 @@ function executeCheckInOrOut(empId) {
   const currentDateStr = mockTime.date;
   const currentTimeStr = mockTime.time;
   const currentDayOfWeek = mockTime.day;
+  const studentMode = isStudentAccount(emp);
 
   // Search if log exists for today
   const todayLog = logs.find(l => l.employeeId === empId && l.date === currentDateStr);
@@ -940,6 +1251,71 @@ function executeCheckInOrOut(empId) {
   card.className = "feedback-card";
   iconBox.className = "feedback-icon";
   durationLabel.style.display = "none";
+
+  if (studentMode) {
+    if (!todayLog) {
+      const newLog = {
+        id: "LOG_" + Date.now() + "_" + Math.floor(Math.random()*1000),
+        employeeId: emp.id,
+        employeeName: emp.name,
+        role: emp.role,
+        organization: emp.organization,
+        date: currentDateStr,
+        checkInTime: currentTimeStr,
+        checkOutTime: "",
+        workDuration: "",
+        status: "normal",
+        details: `Студент ${emp.studentGroup || emp.department || ""}: вход зафиксирован.`
+      };
+
+      logs.push(newLog);
+      localStorage.setItem("bolashaq_logs", JSON.stringify(logs));
+      title.innerText = "Вход студента зафиксирован";
+      msg.innerText = `${emp.name} · ${emp.studentGroup || emp.department || "Группа"}`;
+      iconGraphic.setAttribute("data-lucide", "check");
+      card.classList.add("status-normal");
+      iconBox.classList.add("status-normal");
+      addToTerminalFeed(newLog, "in");
+      showToast(`Вход студента: ${emp.name}`, "success");
+      playSound("success");
+    } else if (!todayLog.checkOutTime) {
+      todayLog.checkOutTime = currentTimeStr;
+      todayLog.details = `${todayLog.details || ""} Выход зафиксирован.`;
+      localStorage.setItem("bolashaq_logs", JSON.stringify(logs));
+      title.innerText = "Выход студента зафиксирован";
+      msg.innerText = `${emp.name}. Проход завершен.`;
+      durationLabel.innerText = `Вход: ${todayLog.checkInTime} | Выход: ${todayLog.checkOutTime}`;
+      durationLabel.style.display = "block";
+      iconGraphic.setAttribute("data-lucide", "log-out");
+      card.classList.add("status-normal");
+      iconBox.classList.add("status-normal");
+      addToTerminalFeed(todayLog, "out");
+      showToast(`Выход студента: ${emp.name}`, "success");
+      playSound("success");
+    } else {
+      title.innerText = "Проход уже завершен";
+      msg.innerText = `${emp.name}: проход за сегодня уже завершен.`;
+      durationLabel.innerText = `Вход: ${todayLog.checkInTime} | Выход: ${todayLog.checkOutTime}`;
+      durationLabel.style.display = "block";
+      iconGraphic.setAttribute("data-lucide", "info");
+      card.classList.add("status-excused");
+      iconBox.classList.add("status-excused");
+      playSound("warning");
+    }
+
+    lucide.createIcons();
+    overlay.classList.add("active");
+    refreshEmployeeMobileView();
+    if (adminLoggedIn) {
+      updateAdminDashboard();
+      renderEmployeesList();
+      renderLogsList();
+    }
+    setTimeout(() => {
+      overlay.classList.remove("active");
+    }, 3000);
+    return;
+  }
 
   if (!todayLog) {
     // 1st SCAN: CHECK-IN
@@ -1368,9 +1744,10 @@ function loginOwner() {
 
 function configureAdminAccessView() {
   const isOwner = adminAccessRole === "owner";
+  document.body.dataset.accessRole = adminAccessRole || "";
   ["employees", "logs", "settings"].forEach(tab => {
     const btn = document.getElementById(`admin-btn-${tab}`);
-    if (btn) btn.style.display = isOwner ? "none" : "flex";
+    if (btn) btn.style.display = isOwner && tab !== "settings" ? "none" : "flex";
   });
 
   const orgFilter = document.getElementById("filter-organization");
@@ -1388,6 +1765,9 @@ function configureAdminAccessView() {
     label.innerText = isOwner
       ? "Уровень доступа: Владелец · только итоги"
       : `Уровень доступа: Админ · ${getOrganizationName(currentAdminOrganization)}`;
+  }
+  if (label && isOwner) {
+    label.innerText = "Уровень доступа: Владелец · итоги и аккаунты";
   }
 }
 
@@ -1413,6 +1793,7 @@ function logoutAdmin() {
   const loginRole = currentViewMode === "owner" || adminAccessRole === "owner" ? "owner" : "admin";
   adminLoggedIn = false;
   adminAccessRole = loginRole === "owner" ? "owner" : null;
+  document.body.dataset.accessRole = "";
   currentAdminOrganization = null;
   configureAuthScreen(loginRole);
   document.getElementById("admin-auth-screen").style.display = "flex";
@@ -1422,8 +1803,8 @@ function logoutAdmin() {
 
 // Tab switcher inside Admin Panel
 function switchAdminTab(tab) {
-  if (adminAccessRole === "owner" && tab !== "dashboard") {
-    showToast("Владельцу доступны только итоги", "info");
+  if (adminAccessRole === "owner" && !["dashboard", "settings"].includes(tab)) {
+    showToast("Владельцу доступны итоги и аккаунты администраторов", "info");
     tab = "dashboard";
   }
 
@@ -1469,6 +1850,7 @@ function loadSettingsInForm() {
 }
 
 function saveSystemSettings() {
+  const isOwner = adminAccessRole === "owner";
   const workdayStartVal = document.getElementById("settings-workday-start").value;
   const accumulateVal = parseInt(document.getElementById("settings-accumulate-threshold").value);
   const violatorVal = parseInt(document.getElementById("settings-violator-threshold").value);
@@ -1484,9 +1866,9 @@ function saveSystemSettings() {
   const geoFenceLng = parseFloat(document.getElementById("settings-geofence-lng").value);
   const geoFenceRadius = parseInt(document.getElementById("settings-geofence-radius").value);
 
-  const adminAccountInvalid = adminAccounts.some(account => !account.username || !account.password);
+  const adminAccountInvalid = isOwner && adminAccounts.some(account => !account.username || !account.password);
 
-  if (!workdayStartVal || isNaN(accumulateVal) || isNaN(violatorVal) || adminAccountInvalid || !ownerLoginVal || !ownerPasswordVal || isNaN(geoFenceLat) || isNaN(geoFenceLng) || isNaN(geoFenceRadius) || geoFenceRadius < 10) {
+  if (!workdayStartVal || isNaN(accumulateVal) || isNaN(violatorVal) || adminAccountInvalid || (isOwner && (!ownerLoginVal || !ownerPasswordVal)) || isNaN(geoFenceLat) || isNaN(geoFenceLng) || isNaN(geoFenceRadius) || geoFenceRadius < 10) {
     showToast("Заполните все настройки корректно!", "error");
     return;
   }
@@ -1494,9 +1876,11 @@ function saveSystemSettings() {
   settings.workdayStart = workdayStartVal;
   settings.accumulateThreshold = accumulateVal;
   settings.violatorThreshold = violatorVal;
-  settings.adminAccounts = adminAccounts;
-  settings.ownerUsername = ownerLoginVal;
-  settings.ownerPassword = ownerPasswordVal;
+  if (isOwner) {
+    settings.adminAccounts = adminAccounts;
+    settings.ownerUsername = ownerLoginVal;
+    settings.ownerPassword = ownerPasswordVal;
+  }
   settings.geoFenceEnabled = geoFenceEnabled;
   settings.geoFenceLat = geoFenceLat;
   settings.geoFenceLng = geoFenceLng;
@@ -1760,7 +2144,7 @@ function renderEmployeesList() {
             ${emp.name} 
             ${emp.isVip ? '<i data-lucide="star" style="width: 14px; height: 14px; fill: var(--status-vip); color: var(--status-vip); display: inline-block; vertical-align: text-bottom;"></i>' : ""}
           </div>
-          <div class="employee-card-role">${emp.role === "teacher" ? "Преподаватель" : "Администрация"}</div>
+          <div class="employee-card-role">${getRoleLabel(emp.role)}</div>
           <div class="employee-card-org">${getOrganizationName(emp.organization)}</div>
           <div class="employee-card-dept">${emp.department}</div>
           <div class="employee-card-login">Логин: ${emp.username || String(emp.id).toLowerCase()}</div>
@@ -1833,6 +2217,184 @@ function deleteEmployee(empId) {
     }
     renderEmployeeAuthState();
   }
+}
+
+function isXlsxReady() {
+  if (typeof XLSX !== "undefined") return true;
+  showToast("Excel-модуль еще не загрузился. Проверьте интернет и обновите страницу.", "error");
+  return false;
+}
+
+function normalizeEmployeeRole(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (["staff", "admin", "администрация", "административный персонал"].includes(text)) return "staff";
+  if (["student", "студент", "обучающийся"].includes(text)) return "student";
+  return "teacher";
+}
+
+function normalizeEmployeeOrganization(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (["pedcollege", "ped", "педколледж", "педагогический колледж"].includes(text)) return "pedcollege";
+  if (["medcollege", "med", "медколледж", "медицинский колледж"].includes(text)) return "medcollege";
+  if (["university", "univer", "университет"].includes(text)) return "university";
+  return currentAdminOrganization || "university";
+}
+
+function normalizeExcelBoolean(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return ["1", "true", "yes", "да", "vip", "v"].includes(text);
+}
+
+function getExcelValue(row, aliases) {
+  const normalized = {};
+  Object.keys(row).forEach(key => {
+    normalized[String(key).trim().toLowerCase()] = row[key];
+  });
+
+  for (const alias of aliases) {
+    const value = normalized[String(alias).trim().toLowerCase()];
+    if (value !== undefined && value !== null && String(value).trim() !== "") return String(value).trim();
+  }
+  return "";
+}
+
+function generateNextEmployeeId() {
+  const maxNumber = employees.reduce((max, emp) => {
+    const match = String(emp.id || "").match(/^EMP(\d+)$/i);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return `EMP${String(maxNumber + 1).padStart(3, "0")}`;
+}
+
+function employeeToExcelRow(emp) {
+  return {
+    "ФИО": emp.name || "",
+    "Роль": getRoleLabel(emp.role),
+    "Организация": getOrganizationName(emp.organization),
+    "Департамент": emp.department || "",
+    "Логин": emp.username || String(emp.id || "").toLowerCase(),
+    "Пароль": emp.password || "",
+    "Фото URL": emp.avatar || "",
+    "VIP": emp.isVip ? "Да" : "Нет"
+  };
+}
+
+function exportRowsToExcel(rows, fileName, sheetName = "Сотрудники") {
+  if (!isXlsxReady()) return;
+
+  const worksheet = XLSX.utils.json_to_sheet(rows, { header: EMPLOYEE_EXCEL_HEADERS });
+  worksheet["!cols"] = [
+    { wch: 30 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 26 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 32 },
+    { wch: 10 }
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  XLSX.writeFile(workbook, fileName);
+}
+
+function exportEmployeesToExcel() {
+  const scopedEmployees = getScopedEmployees();
+  const rows = scopedEmployees.length
+    ? scopedEmployees.map(employeeToExcelRow)
+    : [{
+        "ФИО": "Иванов Иван Иванович",
+        "Роль": "Преподаватель",
+        "Организация": currentAdminOrganization ? getOrganizationName(currentAdminOrganization) : "Университет",
+        "Департамент": "Кафедра математики",
+        "Логин": "ivanov",
+        "Пароль": "ivanov123",
+        "Фото URL": "",
+        "VIP": "Нет"
+      }];
+
+  exportRowsToExcel(rows, "bolashaq-employees.xlsx");
+  showToast("Excel-файл сотрудников выгружен", "success");
+}
+
+function importEmployeesFromExcel(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!isXlsxReady()) {
+    input.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = event => {
+    try {
+      const data = new Uint8Array(event.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const result = addEmployeesFromExcelRows(rows);
+
+      input.value = "";
+      if (result.added > 0) {
+        localStorage.setItem("bolashaq_employees", JSON.stringify(employees));
+        renderEmployeesList();
+        renderEmployeeAuthState();
+      }
+
+      const skippedText = result.skipped ? `, пропущено: ${result.skipped}` : "";
+      showToast(`Импорт Excel завершен. Добавлено: ${result.added}${skippedText}`, result.added ? "success" : "info");
+    } catch (error) {
+      input.value = "";
+      console.error(error);
+      showToast("Не удалось прочитать Excel-файл. Используйте шаблон из окна добавления.", "error");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function addEmployeesFromExcelRows(rows) {
+  const existingLogins = new Set(employees.map(emp => String(emp.username || "").trim().toLowerCase()).filter(Boolean));
+  let added = 0;
+  let skipped = 0;
+
+  rows.forEach(row => {
+    const name = getExcelValue(row, ["ФИО", "fio", "name", "employee", "сотрудник"]);
+    const department = getExcelValue(row, ["Департамент", "department", "dept", "кафедра", "отдел"]);
+    const username = getExcelValue(row, ["Логин", "username", "login"]).toLowerCase();
+    const password = getExcelValue(row, ["Пароль", "password"]);
+
+    if (!name || !department || !username || !password || existingLogins.has(username)) {
+      skipped += 1;
+      return;
+    }
+
+    const role = normalizeEmployeeRole(getExcelValue(row, ["Роль", "role", "тип"]));
+    const requestedOrganization = normalizeEmployeeOrganization(getExcelValue(row, ["Организация", "organization", "org"]));
+    const organization = currentAdminOrganization || requestedOrganization;
+
+    if (currentAdminOrganization && organization !== currentAdminOrganization) {
+      skipped += 1;
+      return;
+    }
+
+    employees.push({
+      id: generateNextEmployeeId(),
+      name,
+      role,
+      organization,
+      department,
+      avatar: getExcelValue(row, ["Фото URL", "avatar", "photo", "фото"]),
+      username,
+      password,
+      isVip: normalizeExcelBoolean(getExcelValue(row, ["VIP", "vip"])),
+      schedules: []
+    });
+    existingLogins.add(username);
+    added += 1;
+  });
+
+  return { added, skipped };
 }
 
 // Add/Edit employee modal open
@@ -1933,7 +2495,7 @@ function saveEmployeeData() {
     showToast("Карточка сотрудника обновлена", "success");
   } else {
     // Creating new employee
-    const newId = "EMP" + String(employees.length + 1).padStart(3, "0");
+    const newId = generateNextEmployeeId();
     const newEmp = {
       id: newId,
       name: name,
@@ -2015,7 +2577,7 @@ function renderLogsList() {
       tr.innerHTML = `
         <td><strong>${l.employeeName}</strong></td>
         <td>${getOrganizationName(l.organization)}</td>
-        <td>${l.role === "teacher" ? "Преподаватель" : "Администрация"}</td>
+        <td>${getRoleLabel(l.role)}</td>
         <td>${formatDateRu(l.date)}</td>
         <td style="font-variant-numeric: tabular-nums;">${l.checkInTime}</td>
         <td style="font-variant-numeric: tabular-nums;">${l.checkOutTime || '<span style="color: var(--text-muted); font-size: 0.8rem;">не ушел</span>'}</td>
