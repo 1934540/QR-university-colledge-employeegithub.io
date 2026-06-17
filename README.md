@@ -78,6 +78,13 @@ If admin API protection is enabled, set the same key in the browser:
 localStorage.setItem("bolashaq_admin_api_key", "change-this-key");
 ```
 
+Organization admins are scoped by design:
+
+- `univer` sees university employees
+- `ped` sees pedagogical college employees
+- `med` sees medical college employees
+- `owner` sees all organizations
+
 ## API
 
 The frontend uses these endpoints:

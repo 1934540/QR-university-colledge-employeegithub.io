@@ -2447,7 +2447,7 @@ function renderEmployeesList() {
 }
 
 // Delete Employee
-function deleteEmployee(empId) {
+async function deleteEmployee(empId) {
   const emp = employees.find(e => e.id === empId);
   if (!emp || !isInAdminScope(emp)) {
     showToast("Нет доступа к сотруднику другой организации", "error");
@@ -2455,6 +2455,13 @@ function deleteEmployee(empId) {
   }
 
   if (confirm(`Вы действительно хотите удалить сотрудника ${getEmployeeName(empId)}? Все его логи проходов будут стерты!`)) {
+    try {
+      await apiRequest(`/employees/${encodeURIComponent(empId)}/`, { method: "DELETE" });
+    } catch (err) {
+      showToast(`Supabase delete failed: ${err.message}`, "error");
+      return;
+    }
+
     employees = employees.filter(e => e.id !== empId);
     logs = logs.filter(l => l.employeeId !== empId);
     
@@ -2699,7 +2706,7 @@ function closeEmployeeModal() {
   document.getElementById("employee-org-input").disabled = false;
 }
 
-function saveEmployeeData() {
+async function saveEmployeeData() {
   const editId = document.getElementById("edit-employee-id").value;
   const name = document.getElementById("employee-name-input").value.trim();
   const role = document.getElementById("employee-role-input").value;
@@ -2721,6 +2728,35 @@ function saveEmployeeData() {
     return;
   }
 
+  const payload = {
+    id: editId || generateNextEmployeeId(),
+    name,
+    role,
+    organization,
+    department: dept,
+    avatar,
+    username,
+    password,
+    isVip
+  };
+
+  let savedEmployee = null;
+  try {
+    const response = editId
+      ? await apiRequest(`/employees/${encodeURIComponent(editId)}/`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        })
+      : await apiRequest("/employees/", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+    savedEmployee = response.employee || null;
+  } catch (err) {
+    showToast(`Supabase save failed: ${err.message}`, "error");
+    return;
+  }
+
   if (editId) {
     // Editing existing employee
     const emp = employees.find(e => e.id === editId);
@@ -2737,6 +2773,7 @@ function saveEmployeeData() {
       emp.username = username;
       emp.password = password;
       emp.isVip = isVip;
+      if (savedEmployee) Object.assign(emp, savedEmployee);
       
       // Update employee name in all logs too
       logs.forEach(l => {
@@ -2763,7 +2800,7 @@ function saveEmployeeData() {
       isVip: isVip,
       schedules: []
     };
-    employees.push(newEmp);
+    employees.push(savedEmployee || newEmp);
     showToast("Новый сотрудник успешно создан", "success");
   }
 

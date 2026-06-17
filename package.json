@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npx http-server -p 5173",
     "dev:vercel": "npx vercel dev --listen 5173",
-    "check:api": "node --check api/_lib/supabase.js && node --check api/_lib/mappers.js && node --check api/_lib/attendance.js && node --check api/health.js && node --check api/users/index.js && node --check api/employees/index.js && node --check \"api/employees/[public_id]/logs.js\" && node --check api/logs/index.js && node --check api/auth/employee.js && node --check api/gate-qr.js && node --check api/attendance/scan.js"
+    "check:api": "node --check api/_lib/supabase.js && node --check api/_lib/mappers.js && node --check api/_lib/attendance.js && node --check api/health.js && node --check api/users/index.js && node --check api/employees/index.js && node --check \"api/employees/[public_id].js\" && node --check \"api/employees/[public_id]/logs.js\" && node --check api/logs/index.js && node --check api/auth/employee.js && node --check api/gate-qr.js && node --check api/attendance/scan.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.87.1"

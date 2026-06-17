@@ -18,6 +18,7 @@ function mapEmployee(row) {
     department: row.department || "",
     studentGroup: row.student_group || "",
     username: row.username,
+    password: row.password || "",
     avatar: row.avatar || "",
     isVip: Boolean(row.is_vip),
     isActive: row.is_active !== false,
