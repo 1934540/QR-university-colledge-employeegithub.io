@@ -1,123 +1,124 @@
 # BolashaqQR
 
-BolashaqQR - система учета посещаемости через QR-коды для учебной организации. В текущем виде это демонстрационный продукт с рабочим статическим frontend и отдельным Django backend API.
+BolashaqQR - QR attendance system for an educational organization. The project is now a static frontend plus Node.js Vercel Functions API. The only production database is Supabase.
 
-## Что уже есть
+There is no Django backend and no Django migrations. Tables are created manually in Supabase SQL Editor using the SQL files in `supabase/`.
 
-- Терминал входа с QR-кодом точки прохода.
-- Кабинет сотрудника с QR-сканированием, расписанием и историей посещений.
-- Панель администратора с сотрудниками, журналом, настройками и Excel-импортом.
-- Представление владельца с отчетами по опозданиям.
-- Django backend с моделями сотрудников, расписаний, QR-точек и журналов посещений.
-- Seed-команда для демо-данных и базовые API-тесты.
+## Stack
 
-## Структура проекта
+- Frontend: static HTML/CSS/JavaScript
+- API: Node.js Vercel Functions in `api/`
+- Database: Supabase tables in the public schema
+- Deployment: Vercel
+
+## Project Structure
 
 ```text
 BolashaqQR/
-├── index.html              # Главный статический интерфейс
-├── terminal.html           # Прямой вход в режим терминала
-├── employee.html           # Прямой вход в кабинет сотрудника
-├── admin.html              # Прямой вход в админский режим
-├── owner.html              # Прямой вход в режим владельца
-├── app.js                  # Основная frontend-логика демо-приложения
-├── style.css               # Общие стили интерфейса
-├── mockData.js             # Локальные демо-данные для fallback-режима
-├── employee-template.xlsx  # Шаблон импорта сотрудников
-├── package.json            # Локальный статический dev-сервер
-└── backend/
-    ├── manage.py
-    ├── requirements.txt
-    ├── start_backend.ps1
-    ├── bolashaq_api/       # Django project settings/urls
-    └── attendance/         # Attendance domain: models, API, services, tests
+├── api/                    # Node.js API routes for Vercel Functions
+│   ├── _lib/               # Supabase client, mappers, attendance logic
+│   ├── attendance/scan.js
+│   ├── auth/employee.js
+│   ├── employees/
+│   ├── gate-qr.js
+│   ├── health.js
+│   └── logs/
+├── supabase/
+│   ├── schema.sql          # Create tables manually in Supabase
+│   └── seed_demo.sql       # Optional demo data
+├── index.html
+├── terminal.html
+├── employee.html
+├── admin.html
+├── owner.html
+├── app.js
+├── style.css
+├── vercel.json
+└── package.json
 ```
 
-## Локальный запуск frontend
+## Supabase Setup
 
-```powershell
-npm run dev
-```
+Open Supabase SQL Editor and run:
 
-После запуска откройте:
+1. `supabase/schema.sql`
+2. Optional demo data: `supabase/seed_demo.sql`
+
+The Node API expects these tables:
+
+- `users`
+- `employees`
+- `schedules`
+- `attendance_logs`
+- `gate_qrs`
+
+`users` stores login accounts and roles. `employees` stores employee profiles. Employee accounts link to profiles through `users.employee_id`.
+
+For the current demo backend, keep RLS disabled on these tables or add your own policies that allow the publishable key to read/write the needed rows.
+
+## Environment Variables
+
+Set these in Vercel Project Settings -> Environment Variables:
 
 ```text
-http://localhost:5173
+SUPABASE_URL=https://pjjcsagviayhioqajzhv.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_Pme5rr6mOQWArrrgHT5ovQ_W46DaBLC
 ```
 
-Frontend по умолчанию пытается подключиться к `/api`, если открыт через HTTP, или к `http://127.0.0.1:8000/api`, если открыт как локальный файл. Если backend недоступен, приложение работает в demo/fallback-режиме на `localStorage`.
-
-## Локальный запуск backend
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe manage.py migrate
-.\.venv\Scripts\python.exe manage.py seed_demo
-.\.venv\Scripts\python.exe manage.py createsuperuser
-.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
-```
-
-Полезные адреса:
-
-- Django admin: `http://127.0.0.1:8000/admin/`
-- API health: `http://127.0.0.1:8000/api/health/`
-
-Демо-логины сотрудников после `seed_demo`:
-
-- `emp001` / `emp001`
-- `emp002` / `emp002`
-- `emp004` / `emp004`
-
-## Backend configuration
-
-Все production-настройки задаются через переменные окружения:
+Optional admin API protection:
 
 ```text
-DJANGO_SECRET_KEY=...
-DJANGO_DEBUG=0
-DJANGO_ALLOWED_HOSTS=example.com,www.example.com
-CORS_ALLOWED_ORIGINS=https://example.com
-BOLASHAQ_ADMIN_API_KEY=change-this-key
 BOLASHAQ_REQUIRE_ADMIN_API_KEY=1
+BOLASHAQ_ADMIN_API_KEY=change-this-key
 ```
 
-Если `BOLASHAQ_REQUIRE_ADMIN_API_KEY=1`, чувствительные admin API вроде списка сотрудников и журналов требуют HTTP-заголовок:
-
-```text
-X-Bolashaq-Admin-Key: change-this-key
-```
-
-Для статического frontend ключ можно указать в консоли браузера:
+If admin API protection is enabled, set the same key in the browser:
 
 ```js
 localStorage.setItem("bolashaq_admin_api_key", "change-this-key");
 ```
 
-Публичными остаются health endpoint, вход сотрудника, QR точки прохода и сканирование QR.
+## API
 
-## Текущее состояние
+The frontend uses these endpoints:
 
-Это еще не production-система. Главные ограничения:
+- `GET /api/health`
+- `GET /api/users`
+- `GET /api/employees`
+- `GET /api/logs`
+- `POST /api/auth/employee`
+- `GET /api/gate-qr`
+- `POST /api/attendance/scan`
+- `GET /api/employees/:public_id/logs`
 
-- frontend остается монолитным статическим приложением;
-- часть данных в demo/fallback-режиме хранится в `localStorage`;
-- полноценная ролевая авторизация еще не реализована;
-- SQLite подходит для локальной разработки, но не для реальной эксплуатации;
-- backend и frontend деплоятся отдельно.
+## Local Development
 
-## Ближайший roadmap
-
-1. Перенести источник истины полностью в backend.
-2. Разделить `app.js` на модули или перейти на frontend-фреймворк.
-3. Добавить нормальную авторизацию и роли: сотрудник, администратор, владелец.
-4. Перейти на PostgreSQL для production.
-5. Расширить API для управления сотрудниками, расписаниями, оправданиями и отчетами.
-6. Добавить end-to-end тесты для QR-прохода и админских сценариев.
-
-## Тесты backend
+Static-only frontend:
 
 ```powershell
-cd backend
-.\.venv\Scripts\python.exe manage.py test
+npm run dev
 ```
+
+Frontend plus Vercel API functions:
+
+```powershell
+npm install
+npm run dev:vercel
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
+
+## Vercel URLs
+
+Clean URLs are configured:
+
+- `/terminal`
+- `/employee`
+- `/admin`
+- `/owner`
+
+Old `.html` links redirect to clean URLs.

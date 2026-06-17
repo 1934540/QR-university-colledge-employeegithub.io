@@ -109,7 +109,7 @@ function getApiBaseUrl() {
   if (window.location.protocol.startsWith("http")) {
     return `${window.location.origin}/api`;
   }
-  return "http://127.0.0.1:8000/api";
+  return "http://localhost:5173/api";
 }
 
 function getAdminApiKey() {
