@@ -36,6 +36,8 @@ let attendanceChart = null;
 const QR_REFRESH_MS = 30000;
 const QR_SLOT_TOLERANCE = 4;
 const API_TIMEOUT_MS = 5000;
+const SETTINGS_VERSION = 2;
+const DEFAULT_GEOFENCE_ENABLED = false;
 
 const EMPLOYEE_EXCEL_HEADERS = [
   "ФИО",
@@ -231,8 +233,13 @@ function initData() {
   const savedSettings = localStorage.getItem("bolashaq_settings");
   if (savedSettings) {
     settings = JSON.parse(savedSettings);
+    if (!settings.settingsVersion || settings.settingsVersion < SETTINGS_VERSION) {
+      settings.geoFenceEnabled = DEFAULT_GEOFENCE_ENABLED;
+      settings.settingsVersion = SETTINGS_VERSION;
+    }
   } else {
     settings = {
+      settingsVersion: SETTINGS_VERSION,
       workdayStart: "09:00",
       accumulateThreshold: 5,
       violatorThreshold: 3,
@@ -240,7 +247,7 @@ function initData() {
       adminAccounts: getDefaultAdminAccounts(),
       ownerUsername: "owner",
       ownerPassword: "owner123",
-      geoFenceEnabled: true,
+      geoFenceEnabled: DEFAULT_GEOFENCE_ENABLED,
       geoFenceLat: 44.8488,
       geoFenceLng: 65.4823,
       geoFenceRadius: 150
@@ -249,7 +256,8 @@ function initData() {
   }
 
   settings = {
-    geoFenceEnabled: true,
+    settingsVersion: SETTINGS_VERSION,
+    geoFenceEnabled: DEFAULT_GEOFENCE_ENABLED,
     geoFenceLat: 44.8488,
     geoFenceLng: 65.4823,
     geoFenceRadius: 150,
@@ -1857,8 +1865,15 @@ async function openMobileScanner() {
     return;
   }
 
-  const isAllowed = await ensureInsideGeoFence();
-  if (!isAllowed) return;
+  if (!window.isSecureContext) {
+    showToast("\u041a\u0430\u043c\u0435\u0440\u0430 \u043d\u0430 \u0442\u0435\u043b\u0435\u0444\u043e\u043d\u0435 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \u0442\u043e\u043b\u044c\u043a\u043e \u0447\u0435\u0440\u0435\u0437 HTTPS. \u041e\u0442\u043a\u0440\u043e\u0439\u0442\u0435 \u043e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043d\u0443\u044e HTTPS-\u0441\u0441\u044b\u043b\u043a\u0443.", "error");
+    return;
+  }
+
+  if (typeof Html5Qrcode === "undefined") {
+    showToast("\u0421\u043a\u0430\u043d\u0435\u0440 QR \u043d\u0435 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u043b\u0441\u044f. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u043d\u0430 \u0442\u0435\u043b\u0435\u0444\u043e\u043d\u0435 \u0438 \u043e\u0431\u043d\u043e\u0432\u0438\u0442\u0435 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443.", "error");
+    return;
+  }
 
   const overlay = document.getElementById("mobile-camera-overlay");
   overlay.classList.add("active");
@@ -1882,13 +1897,8 @@ async function openMobileScanner() {
       
       if (isGateQrPayload(decodedText)) {
         // Successfully scanned the gate! Execute check in/out for current user
-        const isAllowedNow = await ensureInsideGeoFence();
-        if (isAllowedNow) {
-          executeCheckInOrOut(authenticatedEmployee.id, decodedText);
-          closeMobileScanner();
-        } else {
-          scannerProcessing = false;
-        }
+        executeCheckInOrOut(authenticatedEmployee.id, decodedText);
+        closeMobileScanner();
       } else {
         // Some other QR scanned
         showToast("Неверный QR-код входа!", "error");
@@ -1933,9 +1943,6 @@ async function simulateCheckIn() {
     showToast("Сначала войдите в аккаунт сотрудника", "error");
     return;
   }
-
-  const isAllowed = await ensureInsideGeoFence();
-  if (!isAllowed) return;
 
   executeCheckInOrOut(authenticatedEmployee.id);
 }
@@ -2135,6 +2142,7 @@ function saveSystemSettings() {
     settings.ownerUsername = ownerLoginVal;
     settings.ownerPassword = ownerPasswordVal;
   }
+  settings.settingsVersion = SETTINGS_VERSION;
   settings.geoFenceEnabled = geoFenceEnabled;
   settings.geoFenceLat = geoFenceLat;
   settings.geoFenceLng = geoFenceLng;
