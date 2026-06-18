@@ -1,4 +1,5 @@
 const WORKDAY_START = "09:00";
+const PLATFORM_TIME_ZONE = "Asia/Qyzylorda";
 
 function parseTimeToMinutes(value) {
   const [hours, minutes] = String(value || "00:00").split(":").map(Number);
@@ -7,11 +8,26 @@ function parseTimeToMinutes(value) {
 
 function toDateParts(value) {
   const source = value ? new Date(value) : new Date();
-  const local = new Date(source.getTime() - source.getTimezoneOffset() * 60000);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PLATFORM_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).formatToParts(source).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const date = `${parts.year}-${parts.month}-${parts.day}`;
+  const platformDate = new Date(`${date}T00:00:00`);
+
   return {
-    date: local.toISOString().slice(0, 10),
-    time: local.toISOString().slice(11, 16),
-    weekday: local.getDay() === 0 ? 7 : local.getDay()
+    date,
+    time: `${parts.hour}:${parts.minute}`,
+    weekday: platformDate.getDay() === 0 ? 7 : platformDate.getDay()
   };
 }
 

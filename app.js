@@ -42,6 +42,8 @@ const QR_SLOT_TOLERANCE = 4;
 const API_TIMEOUT_MS = 5000;
 const SETTINGS_VERSION = 2;
 const DEFAULT_GEOFENCE_ENABLED = false;
+const PLATFORM_TIME_ZONE = "Asia/Qyzylorda";
+const PLATFORM_TIMEZONE_OFFSET = "+05:00";
 
 const EMPLOYEE_EXCEL_HEADERS = [
   "ФИО",
@@ -531,24 +533,31 @@ function updateMockTimeSettings() {
   }
 }
 
-function formatLocalDateInput(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function getRealTimeSnapshot() {
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  const seconds = String(now.getSeconds()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PLATFORM_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).formatToParts(new Date()).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  const date = `${parts.year}-${parts.month}-${parts.day}`;
+  const time = `${parts.hour}:${parts.minute}`;
+  const platformDate = new Date(`${date}T00:00:00`);
 
   return {
-    date: formatLocalDateInput(now),
-    day: now.getDay(),
-    time: `${hours}:${minutes}`,
-    displayTime: `${hours}:${minutes}:${seconds}`
+    date,
+    day: platformDate.getDay(),
+    time,
+    displayTime: `${time}:${parts.second}`
   };
 }
 
@@ -1517,7 +1526,7 @@ async function syncAttendanceScanWithBackend(empId, qrPayload) {
         platformDate: mockTime.date,
         platformTime: mockTime.time,
         platformWeekday,
-        scannedAt: `${mockTime.date}T${mockTime.time}:00`
+        scannedAt: `${mockTime.date}T${mockTime.time}:00${PLATFORM_TIMEZONE_OFFSET}`
       })
     });
 
