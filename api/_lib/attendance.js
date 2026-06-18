@@ -15,6 +15,24 @@ function toDateParts(value) {
   };
 }
 
+function toPlatformDateParts(body = {}) {
+  const date = String(body.platformDate || body.platform_date || "").trim();
+  const time = String(body.platformTime || body.platform_time || "").trim();
+  const weekday = Number(body.platformWeekday || body.platform_weekday);
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+    /^\d{2}:\d{2}$/.test(time) &&
+    Number.isInteger(weekday) &&
+    weekday >= 1 &&
+    weekday <= 7
+  ) {
+    return { date, time, weekday };
+  }
+
+  return null;
+}
+
 function formatDuration(checkIn, checkOut) {
   let start = parseTimeToMinutes(checkIn);
   let end = parseTimeToMinutes(checkOut);
@@ -89,5 +107,6 @@ module.exports = {
   acceptsGateQr,
   calculateStatus,
   formatDuration,
+  toPlatformDateParts,
   toDateParts
 };

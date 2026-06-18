@@ -1461,13 +1461,17 @@ async function syncAttendanceScanWithBackend(empId, qrPayload) {
   if (!emp) return null;
 
   try {
+    const platformWeekday = mockTime.day === 0 ? 7 : mockTime.day;
     const payload = await apiRequest("/attendance/scan/", {
       method: "POST",
       body: JSON.stringify({
         employeeId: emp.id,
         employeeUid: emp.uid || "",
         qrPayload: qrPayload || "BOLASHAQ-MAIN-GATE-01",
-        scannedAt: new Date().toISOString()
+        platformDate: mockTime.date,
+        platformTime: mockTime.time,
+        platformWeekday,
+        scannedAt: `${mockTime.date}T${mockTime.time}:00`
       })
     });
 

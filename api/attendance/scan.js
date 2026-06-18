@@ -1,5 +1,5 @@
 const { supabase, sendJson, methodNotAllowed, getJsonBody, handleError } = require("../_lib/supabase");
-const { acceptsGateQr, calculateStatus, formatDuration, toDateParts } = require("../_lib/attendance");
+const { acceptsGateQr, calculateStatus, formatDuration, toDateParts, toPlatformDateParts } = require("../_lib/attendance");
 const { mapEmployee, mapLog } = require("../_lib/mappers");
 
 async function findEmployee(employeeId, employeeUid) {
@@ -39,7 +39,7 @@ module.exports = async function handler(req, res) {
   if (!employeeResult.data) return sendJson(res, 404, { detail: "Сотрудник не найден." });
 
   const employee = employeeResult.data;
-  const { date, time, weekday } = toDateParts(scannedAt);
+  const { date, time, weekday } = toPlatformDateParts(body) || toDateParts(scannedAt);
 
   const gateResult = await supabase
     .from("gate_qrs")

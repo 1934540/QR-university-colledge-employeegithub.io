@@ -23,6 +23,8 @@ The admin settings panel includes an optional geofence for QR attendance scans:
 
 The terminal QR page refreshes the attendance feed from `/api/logs` every second while the terminal view is open. New check-ins and check-outs from another device appear in the right-side feed without a manual page refresh.
 
+Scan timestamps are saved using the platform clock shown in the app header. The frontend sends `platformDate`, `platformTime`, and `platformWeekday` to `/api/attendance/scan`, so backend logs match the visible terminal time instead of the server or browser timezone.
+
 ## Project Structure
 
 ```text
