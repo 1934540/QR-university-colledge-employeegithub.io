@@ -102,6 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
   switchViewMode(initialView);
   renderEmployeeAuthState();
   startRealtimeQrRefresh();
+  document.getElementById("settings-geofence-enabled")?.addEventListener("change", updateGeoFenceFieldsState);
   lucide.createIcons();
 });
 
@@ -1896,6 +1897,11 @@ async function openMobileScanner() {
       console.log("Scanned QR Text:", decodedText);
       
       if (isGateQrPayload(decodedText)) {
+        if (!(await ensureInsideGeoFence())) {
+          scannerProcessing = false;
+          return;
+        }
+
         // Successfully scanned the gate! Execute check in/out for current user
         executeCheckInOrOut(authenticatedEmployee.id, decodedText);
         closeMobileScanner();
@@ -1943,6 +1949,8 @@ async function simulateCheckIn() {
     showToast("Сначала войдите в аккаунт сотрудника", "error");
     return;
   }
+
+  if (!(await ensureInsideGeoFence())) return;
 
   executeCheckInOrOut(authenticatedEmployee.id);
 }
@@ -2108,6 +2116,21 @@ function loadSettingsInForm() {
   document.getElementById("settings-geofence-lat").value = settings.geoFenceLat;
   document.getElementById("settings-geofence-lng").value = settings.geoFenceLng;
   document.getElementById("settings-geofence-radius").value = settings.geoFenceRadius;
+  updateGeoFenceFieldsState();
+}
+
+function updateGeoFenceFieldsState() {
+  const enabledInput = document.getElementById("settings-geofence-enabled");
+  const geoInputs = [
+    document.getElementById("settings-geofence-lat"),
+    document.getElementById("settings-geofence-lng"),
+    document.getElementById("settings-geofence-radius")
+  ].filter(Boolean);
+  const isEnabled = Boolean(enabledInput?.checked);
+
+  geoInputs.forEach(input => {
+    input.disabled = !isEnabled;
+  });
 }
 
 function saveSystemSettings() {
@@ -2128,8 +2151,9 @@ function saveSystemSettings() {
   const geoFenceRadius = parseInt(document.getElementById("settings-geofence-radius").value);
 
   const adminAccountInvalid = isOwner && adminAccounts.some(account => !account.username || !account.password);
+  const geoFenceInvalid = geoFenceEnabled && (isNaN(geoFenceLat) || isNaN(geoFenceLng) || isNaN(geoFenceRadius) || geoFenceRadius < 10);
 
-  if (!workdayStartVal || isNaN(accumulateVal) || isNaN(violatorVal) || adminAccountInvalid || (isOwner && (!ownerLoginVal || !ownerPasswordVal)) || isNaN(geoFenceLat) || isNaN(geoFenceLng) || isNaN(geoFenceRadius) || geoFenceRadius < 10) {
+  if (!workdayStartVal || isNaN(accumulateVal) || isNaN(violatorVal) || adminAccountInvalid || (isOwner && (!ownerLoginVal || !ownerPasswordVal)) || geoFenceInvalid) {
     showToast("Заполните все настройки корректно!", "error");
     return;
   }
@@ -2144,9 +2168,9 @@ function saveSystemSettings() {
   }
   settings.settingsVersion = SETTINGS_VERSION;
   settings.geoFenceEnabled = geoFenceEnabled;
-  settings.geoFenceLat = geoFenceLat;
-  settings.geoFenceLng = geoFenceLng;
-  settings.geoFenceRadius = geoFenceRadius;
+  settings.geoFenceLat = geoFenceEnabled ? geoFenceLat : settings.geoFenceLat;
+  settings.geoFenceLng = geoFenceEnabled ? geoFenceLng : settings.geoFenceLng;
+  settings.geoFenceRadius = geoFenceEnabled ? geoFenceRadius : settings.geoFenceRadius;
 
   localStorage.setItem("bolashaq_settings", JSON.stringify(settings));
   showToast("Настройки успешно сохранены!", "success");

@@ -11,6 +11,14 @@ There is no Django backend and no Django migrations. Tables are created manually
 - Database: Supabase tables in the public schema
 - Deployment: Vercel
 
+## Attendance Settings
+
+The admin settings panel includes an optional geofence for QR attendance scans:
+
+- When `Allow scanning only near the entrance point` is enabled, employees can check in only inside the configured latitude/longitude radius.
+- When the checkbox is disabled, QR scans and the scan simulator are allowed from any location.
+- Latitude, longitude, and radius fields are disabled in the UI while the geofence is off.
+
 ## Project Structure
 
 ```text
