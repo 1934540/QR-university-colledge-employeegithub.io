@@ -28,12 +28,16 @@ let scannerProcessing = false;
 let terminalQrcodeScanner = null;
 let terminalScannerProcessing = false;
 let qrRefreshTimer = null;
+let terminalFeedRealtimeTimer = null;
+let terminalFeedRequestInFlight = false;
+let terminalFeedSignature = "";
 let activeQrModalEmployeeId = null;
 
 // Chart.js instance
 let attendanceChart = null;
 
 const QR_REFRESH_MS = 30000;
+const TERMINAL_FEED_REFRESH_MS = 1000;
 const QR_SLOT_TOLERANCE = 4;
 const API_TIMEOUT_MS = 5000;
 const SETTINGS_VERSION = 2;
@@ -665,6 +669,7 @@ function switchViewMode(mode) {
     document.getElementById("btn-mode-terminal").classList.add("active");
     document.getElementById("terminal-view").classList.add("active");
     renderTerminalFeed();
+    startTerminalFeedRealtime();
   } else if (mode === "employee") {
     document.getElementById("btn-mode-employee").classList.add("active");
     document.getElementById("employee-view").classList.add("active");
@@ -715,6 +720,7 @@ function switchViewMode(mode) {
   closeMobileScanner();
   if (mode !== "terminal") {
     closeTerminalScanner();
+    stopTerminalFeedRealtime();
   }
 }
 
@@ -1738,10 +1744,62 @@ function addToTerminalFeed(log, scanType) {
   }
 }
 
+function getTerminalFeedSignature(sourceLogs = logs) {
+  return sourceLogs
+    .filter(log => log.date === mockTime.date)
+    .map(log => [
+      log.id,
+      log.employeeId,
+      log.employeeName,
+      log.organization,
+      log.checkInTime,
+      log.checkOutTime,
+      log.status,
+      log.workDuration
+    ].join("|"))
+    .sort()
+    .join(";");
+}
+
+function startTerminalFeedRealtime() {
+  if (terminalFeedRealtimeTimer) clearInterval(terminalFeedRealtimeTimer);
+  refreshTerminalFeedFromBackend();
+  terminalFeedRealtimeTimer = setInterval(refreshTerminalFeedFromBackend, TERMINAL_FEED_REFRESH_MS);
+}
+
+function stopTerminalFeedRealtime() {
+  if (!terminalFeedRealtimeTimer) return;
+  clearInterval(terminalFeedRealtimeTimer);
+  terminalFeedRealtimeTimer = null;
+}
+
+async function refreshTerminalFeedFromBackend() {
+  if (currentViewMode !== "terminal" || terminalFeedRequestInFlight) return;
+
+  terminalFeedRequestInFlight = true;
+  try {
+    const payload = await apiRequest("/logs/");
+    if (!Array.isArray(payload.logs)) return;
+
+    const nextSignature = getTerminalFeedSignature(payload.logs);
+    if (nextSignature === terminalFeedSignature) return;
+
+    logs = payload.logs;
+    terminalFeedSignature = nextSignature;
+    localStorage.setItem("bolashaq_logs", JSON.stringify(logs));
+    renderTerminalFeed();
+  } catch (err) {
+    console.info("Terminal live feed refresh unavailable:", err.message);
+  } finally {
+    terminalFeedRequestInFlight = false;
+  }
+}
+
 function renderTerminalFeed() {
   const feed = document.getElementById("terminal-live-feed");
   if (!feed) return;
 
+  terminalFeedSignature = getTerminalFeedSignature();
   feed.innerHTML = "";
   
   // Get logs matching current mock date

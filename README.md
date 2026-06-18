@@ -19,6 +19,10 @@ The admin settings panel includes an optional geofence for QR attendance scans:
 - When the checkbox is disabled, QR scans and the scan simulator are allowed from any location.
 - Latitude, longitude, and radius fields are disabled in the UI while the geofence is off.
 
+## Terminal Live Feed
+
+The terminal QR page refreshes the attendance feed from `/api/logs` every second while the terminal view is open. New check-ins and check-outs from another device appear in the right-side feed without a manual page refresh.
+
 ## Project Structure
 
 ```text
