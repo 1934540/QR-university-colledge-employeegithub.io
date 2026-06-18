@@ -25,6 +25,8 @@ The terminal QR page refreshes the attendance feed from `/api/logs` every second
 
 Scan timestamps are saved using the platform clock shown in the app header. The frontend sends `platformDate`, `platformTime`, and `platformWeekday` to `/api/attendance/scan`, so backend logs match the visible terminal time instead of the server or browser timezone.
 
+The entrance QR can be downloaded from the terminal card as a PNG using the `Download QR` button under the code.
+
 ## Project Structure
 
 ```text

@@ -386,6 +386,52 @@ function renderQrCode(container, text, size) {
   });
 }
 
+function sanitizeDownloadFilename(value) {
+  return String(value || "qr")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "_")
+    .slice(0, 80) || "qr";
+}
+
+function downloadQrCodeImage(containerId, filename) {
+  const container = document.getElementById(containerId);
+  if (!container) return false;
+
+  const canvas = container.querySelector("canvas");
+  const image = container.querySelector("img");
+  const dataUrl = canvas ? canvas.toDataURL("image/png") : image?.src;
+
+  if (!dataUrl) {
+    showToast("QR-код еще не готов для скачивания.", "error");
+    return false;
+  }
+
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = filename.endsWith(".png") ? filename : `${filename}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  return true;
+}
+
+function downloadEntranceQrCode() {
+  generateEntranceQR();
+  if (downloadQrCodeImage("entrance-static-qr", "BolashaqQR_Entrance_QR.png")) {
+    showToast("QR входа скачан", "success");
+  }
+}
+
+function downloadEmployeeQrPass() {
+  const emp = employees.find(e => e.id === activeQrModalEmployeeId);
+  if (emp) generateAdminQrModalCode(emp);
+  const fileBase = sanitizeDownloadFilename(`BolashaqQR_${emp?.name || "Employee"}_${emp?.id || "QR"}`);
+  if (downloadQrCodeImage("employee-qr-canvas", `${fileBase}.png`)) {
+    showToast("QR-пропуск скачан", "success");
+  }
+}
+
 function isFreshQrSlot(slotText) {
   const slot = Number(slotText);
   if (!Number.isFinite(slot)) return true;
